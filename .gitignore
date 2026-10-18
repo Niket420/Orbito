@@ -255,6 +255,15 @@ coverage/
 /.dvc/tmp/
 
 # ==============================
+# Swift / Xcode
+# ==============================
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# ==============================
 # Miscellaneous
 # ==============================
 .ipython/
