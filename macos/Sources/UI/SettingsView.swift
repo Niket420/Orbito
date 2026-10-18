@@ -9,11 +9,21 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var assistant = assistant
+        @Bindable var themeStore = ThemeStore.shared
         Form {
+            Section("Appearance") {
+                Picker("Theme", selection: $themeStore.theme) {
+                    ForEach(AppTheme.allCases) { theme in
+                        Text(theme.title).tag(theme)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
             Section("Backend") {
                 LabeledContent("Status", value: assistant.backend.connection.label)
                 if case .offline(let reason) = assistant.backend.connection {
-                    Text(reason).font(.caption).foregroundStyle(Theme.rose)
+                    Text(reason).font(.caption).foregroundStyle(Theme.danger)
                 }
                 if let health = assistant.backend.health {
                     LabeledContent("Planner", value: providerLabel(health.llmProvider,
@@ -66,7 +76,8 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 560)
+        .frame(width: 500, height: 620)
+        .tint(Theme.accent)
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
             accessibilityTrusted = AccessibilityController.isTrusted
             micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -83,6 +94,6 @@ private struct PermissionBadge: View {
 
     var body: some View {
         Label(granted ? "Granted" : "Not granted", systemImage: granted ? "checkmark.circle.fill" : "circle.dashed")
-            .foregroundStyle(granted ? Theme.green : Theme.secondaryInk)
+            .foregroundStyle(granted ? Theme.success : Theme.secondaryInk)
     }
 }

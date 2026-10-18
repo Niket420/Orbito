@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The colourful animated assistant, drawn entirely with SwiftUI shapes.
+/// The animated assistant, drawn entirely with SwiftUI shapes in the current theme's colours.
 struct AssistantBotView: View {
     let state: AssistantState
     var level: Double = 0
@@ -20,9 +20,9 @@ struct AssistantBotView: View {
             StateBadge(state: state)
                 .id(state)
                 .transition(.scale(scale: 0.2).combined(with: .opacity))
-                .offset(x: 78, y: -88)
+                .offset(x: 76, y: -86)
         }
-        .frame(width: 280, height: 280)
+        .frame(width: 270, height: 270)
         .animation(.spring(response: 0.5, dampingFraction: 0.75), value: state)
         .onChange(of: state) { _, newValue in
             if newValue == .error {
@@ -38,33 +38,23 @@ struct AssistantBotView: View {
 private extension AssistantState {
     var floatAmplitude: CGFloat {
         switch self {
-        case .idle: 7
+        case .idle: 6
         case .listening, .waitingForApproval: 4
         case .thinking: 5
         case .executing: 2
-        case .completed: 8
+        case .completed: 7
         case .error: 0
         }
     }
 
     var floatPeriod: Double { self == .executing ? 0.6 : 2.2 }
 
-    var eyeColor: Color {
+    func eyeColor(_ p: Palette) -> Color {
         switch self {
-        case .waitingForApproval: Theme.amber
-        case .completed: Color(red: 0.55, green: 1.0, blue: 0.80)
-        case .error: Color(red: 1.0, green: 0.55, blue: 0.62)
-        default: Color(red: 0.62, green: 0.96, blue: 1.0)
-        }
-    }
-
-    var headColors: [Color] {
-        switch self {
-        case .waitingForApproval: [Theme.amber, Theme.pink, Theme.purple]
-        case .completed: [Theme.cyan, Theme.blue, Theme.purple]
-        case .error: [Theme.pink, Theme.rose, Theme.purple]
-        case .listening: [Theme.cyan, Theme.blue, Theme.purple]
-        default: [Theme.blue, Theme.purple, Theme.pink]
+        case .waitingForApproval: p.eyeWaiting
+        case .completed: p.eyeDone
+        case .error: p.eyeError
+        default: p.eye
         }
     }
 }
@@ -77,47 +67,38 @@ private struct BotFigure: View {
     @State private var blink = false
 
     var body: some View {
+        let p = Theme.palette
         VStack(spacing: -4) {
-            Antenna(state: state)
+            Antenna()
             ZStack {
-                HStack(spacing: 148) { Ear(); Ear() }
-                head
-                visor
+                HStack(spacing: 146) { Ear(); Ear() }
+                RoundedRectangle(cornerRadius: 44, style: .continuous)
+                    .fill(LinearGradient(colors: p.botHead, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 156, height: 132)
+                    .overlay(alignment: .top) {
+                        Capsule().fill(.white.opacity(0.22)).frame(width: 90, height: 12).blur(radius: 2).padding(.top, 9)
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: 44, style: .continuous).stroke(.white.opacity(0.25), lineWidth: 1))
+                    .shadow(color: p.accent.opacity(0.22), radius: 20, y: 12)
+                visor(p)
             }
         }
         .task(id: state) { await blinkLoop() }
     }
 
-    private var head: some View {
-        RoundedRectangle(cornerRadius: 46, style: .continuous)
-            .fill(LinearGradient(colors: state.headColors, startPoint: .topLeading, endPoint: .bottomTrailing))
-            .frame(width: 160, height: 136)
-            .overlay(alignment: .top) {
-                Capsule().fill(.white.opacity(0.28)).frame(width: 96, height: 16).blur(radius: 2).padding(.top, 9)
-            }
-            .overlay(RoundedRectangle(cornerRadius: 46, style: .continuous).stroke(.white.opacity(0.45), lineWidth: 1.5))
-            .shadow(color: state.headColors[1].opacity(0.35), radius: 22, y: 12)
-    }
-
-    private var visor: some View {
+    private func visor(_ p: Palette) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(LinearGradient(colors: [Color(red: 0.11, green: 0.10, blue: 0.27), Color(red: 0.19, green: 0.16, blue: 0.45)],
-                                     startPoint: .top, endPoint: .bottom))
-                .frame(width: 124, height: 86)
-            HStack(spacing: 58) {
-                Circle().fill(Theme.pink.opacity(0.45)).frame(width: 12, height: 12).blur(radius: 2)
-                Circle().fill(Theme.pink.opacity(0.45)).frame(width: 12, height: 12).blur(radius: 2)
-            }
-            .offset(y: 18)
-            BotEyes(state: state, blink: blink, level: level).offset(y: -9)
-            BotMouth(state: state, level: level).offset(y: 22)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(LinearGradient(colors: p.botVisor, startPoint: .top, endPoint: .bottom))
+                .frame(width: 120, height: 82)
+            BotEyes(state: state, blink: blink, level: level, color: state.eyeColor(p)).offset(y: -8)
+            BotMouth(state: state, level: level, color: state.eyeColor(p)).offset(y: 21)
         }
         .offset(y: 4)
     }
 
     private func blinkLoop() async {
-        guard state == .idle || state == .listening || state == .executing || state == .thinking else { return }
+        guard [.idle, .listening, .executing, .thinking].contains(state) else { return }
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(Double.random(in: 2.4...4.8)))
             withAnimation(.easeInOut(duration: 0.07)) { blink = true }
@@ -128,18 +109,17 @@ private struct BotFigure: View {
 }
 
 private struct Antenna: View {
-    let state: AssistantState
     @State private var glow = false
 
     var body: some View {
         VStack(spacing: 0) {
             Circle()
-                .fill(LinearGradient(colors: [Theme.cyan, Theme.blue], startPoint: .top, endPoint: .bottom))
-                .frame(width: 18, height: 18)
-                .overlay(Circle().fill(.white.opacity(0.7)).frame(width: 6, height: 6).offset(x: -3, y: -3))
-                .shadow(color: Theme.cyan.opacity(glow ? 0.9 : 0.3), radius: glow ? 12 : 4)
-                .scaleEffect(glow ? 1.12 : 1)
-            Capsule().fill(Theme.purple.opacity(0.85)).frame(width: 5, height: 20)
+                .fill(Theme.accentGradient)
+                .frame(width: 16, height: 16)
+                .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 1))
+                .shadow(color: Theme.accent.opacity(glow ? 0.6 : 0.15), radius: glow ? 10 : 3)
+                .scaleEffect(glow ? 1.1 : 1)
+            Capsule().fill(Theme.palette.botEar).frame(width: 4, height: 18)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { glow = true }
@@ -149,9 +129,9 @@ private struct Antenna: View {
 
 private struct Ear: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(LinearGradient(colors: [Theme.purple, Theme.blue], startPoint: .top, endPoint: .bottom))
-            .frame(width: 16, height: 44)
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(Theme.palette.botEar)
+            .frame(width: 14, height: 40)
     }
 }
 
@@ -159,14 +139,15 @@ private struct BotEyes: View {
     let state: AssistantState
     let blink: Bool
     let level: Double
+    let color: Color
 
     var body: some View {
         HStack(spacing: 30) {
             eye(left: true)
             eye(left: false)
         }
-        .foregroundStyle(state.eyeColor)
-        .shadow(color: state.eyeColor.opacity(0.9), radius: 6)
+        .foregroundStyle(color)
+        .shadow(color: color.opacity(0.7), radius: 5)
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: state)
     }
 
@@ -197,6 +178,7 @@ private struct BotEyes: View {
 private struct BotMouth: View {
     let state: AssistantState
     let level: Double
+    let color: Color
 
     var body: some View {
         Group {
@@ -224,7 +206,7 @@ private struct BotMouth: View {
                 Capsule().frame(width: 18, height: 4)
             }
         }
-        .foregroundStyle(state.eyeColor.opacity(0.9))
+        .foregroundStyle(color.opacity(0.9))
     }
 }
 
@@ -277,47 +259,47 @@ private struct StateAura: View {
     var body: some View {
         switch state {
         case .idle:
-            Halo(colors: [Theme.blue, Theme.purple])
+            Halo(color: Theme.accent)
         case .listening:
             ZStack {
-                Halo(colors: [Theme.cyan, Theme.blue])
-                ForEach(0..<3, id: \.self) { PulseRing(color: Theme.cyan, delay: Double($0) * 0.7) }
+                Halo(color: Theme.accent)
+                ForEach(0..<3, id: \.self) { PulseRing(color: Theme.accent, delay: Double($0) * 0.7) }
             }
         case .thinking:
             ZStack {
-                Halo(colors: [Theme.purple, Theme.pink])
+                Halo(color: Theme.accent)
                 OrbitingDots()
             }
         case .executing:
             ZStack {
-                Halo(colors: [Theme.blue, Theme.cyan])
+                Halo(color: Theme.accent)
                 SpinningArcs()
             }
         case .waitingForApproval:
             ZStack {
-                Halo(colors: [Theme.amber, Theme.pink], period: 0.9)
-                PulseRing(color: Theme.amber, delay: 0, duration: 1.4)
+                Halo(color: Theme.warning, period: 0.9)
+                PulseRing(color: Theme.warning, delay: 0, duration: 1.4)
             }
         case .completed:
             ZStack {
-                Halo(colors: [Theme.green, Theme.cyan])
+                Halo(color: Theme.success)
                 ConfettiBurst()
             }
         case .error:
-            Halo(colors: [Theme.rose, Theme.pink], period: 3)
+            Halo(color: Theme.danger, period: 3)
         }
     }
 }
 
 private struct Halo: View {
-    let colors: [Color]
+    let color: Color
     var period: Double = 2.4
 
     var body: some View {
         Circle()
-            .fill(RadialGradient(colors: [colors[0].opacity(0.32), colors[1].opacity(0.16), .clear],
-                                 center: .center, startRadius: 10, endRadius: 140))
-            .frame(width: 270, height: 270)
+            .fill(RadialGradient(colors: [color.opacity(0.16), color.opacity(0.06), .clear],
+                                 center: .center, startRadius: 10, endRadius: 135))
+            .frame(width: 260, height: 260)
             .phaseAnimator([0.92, 1.06]) { view, scale in
                 view.scaleEffect(scale)
             } animation: { _ in .easeInOut(duration: period) }
@@ -332,9 +314,9 @@ private struct PulseRing: View {
 
     var body: some View {
         Circle()
-            .stroke(color.opacity(0.65), lineWidth: 2.5)
-            .frame(width: 180, height: 180)
-            .scaleEffect(expanded ? 1.55 : 0.9)
+            .stroke(color.opacity(0.45), lineWidth: 2)
+            .frame(width: 176, height: 176)
+            .scaleEffect(expanded ? 1.5 : 0.9)
             .opacity(expanded ? 0 : 0.9)
             .onAppear {
                 withAnimation(.easeOut(duration: duration).repeatForever(autoreverses: false).delay(delay)) {
@@ -346,20 +328,19 @@ private struct PulseRing: View {
 
 private struct OrbitingDots: View {
     @State private var spin = false
-    private let colors = [Theme.blue, Theme.purple, Theme.pink, Theme.cyan]
 
     var body: some View {
+        let colors = Theme.palette.gradient + [Theme.ink]
         ZStack {
             Circle()
-                .stroke(Theme.purple.opacity(0.18), style: StrokeStyle(lineWidth: 1.5, dash: [4, 7]))
-                .frame(width: 236, height: 236)
+                .stroke(Theme.secondaryInk.opacity(0.25), style: StrokeStyle(lineWidth: 1.2, dash: [3, 7]))
+                .frame(width: 230, height: 230)
             ForEach(0..<4, id: \.self) { i in
                 Circle()
-                    .fill(colors[i])
-                    .frame(width: CGFloat(16 - i * 2), height: CGFloat(16 - i * 2))
-                    .shadow(color: colors[i].opacity(0.8), radius: 6)
-                    .offset(y: -118)
-                    .rotationEffect(.degrees(Double(i) * 90 + Double(i) * 12))
+                    .fill(colors[i % colors.count])
+                    .frame(width: CGFloat(13 - i * 2), height: CGFloat(13 - i * 2))
+                    .offset(y: -115)
+                    .rotationEffect(.degrees(Double(i) * 102))
             }
         }
         .rotationEffect(.degrees(spin ? 360 : 0))
@@ -376,14 +357,14 @@ private struct SpinningArcs: View {
         ZStack {
             Circle()
                 .trim(from: 0, to: 0.7)
-                .stroke(AngularGradient(colors: [Theme.cyan.opacity(0), Theme.cyan, Theme.blue, Theme.purple], center: .center),
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .frame(width: 226, height: 226)
+                .stroke(AngularGradient(colors: [Theme.accent.opacity(0), Theme.accent], center: .center),
+                        style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .frame(width: 222, height: 222)
                 .rotationEffect(.degrees(spin ? 360 : 0))
             Circle()
-                .trim(from: 0, to: 0.35)
-                .stroke(Theme.pink.opacity(0.7), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .frame(width: 250, height: 250)
+                .trim(from: 0, to: 0.3)
+                .stroke(Theme.ink.opacity(0.35), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .frame(width: 246, height: 246)
                 .rotationEffect(.degrees(spin ? -360 : 0))
         }
         .onAppear {
@@ -394,22 +375,22 @@ private struct SpinningArcs: View {
 
 private struct ConfettiBurst: View {
     @State private var burst = false
-    private let colors = [Theme.blue, Theme.purple, Theme.pink, Theme.cyan, Theme.green, Theme.amber]
 
     var body: some View {
+        let colors = Theme.palette.confetti
         ZStack {
             Circle()
-                .stroke(Theme.green.opacity(0.6), lineWidth: 3)
-                .frame(width: 170, height: 170)
+                .stroke(Theme.success.opacity(0.5), lineWidth: 2.5)
+                .frame(width: 168, height: 168)
                 .scaleEffect(burst ? 1.6 : 0.8)
                 .opacity(burst ? 0 : 1)
             ForEach(0..<16, id: \.self) { i in
                 let angle = Double(i) / 16 * 2 * .pi
                 RoundedRectangle(cornerRadius: 2)
                     .fill(colors[i % colors.count])
-                    .frame(width: 6, height: 12)
+                    .frame(width: 5, height: 11)
                     .rotationEffect(.radians(angle + (burst ? 2 : 0)))
-                    .offset(x: cos(angle) * (burst ? 135 : 40), y: sin(angle) * (burst ? 135 : 40))
+                    .offset(x: cos(angle) * (burst ? 132 : 40), y: sin(angle) * (burst ? 132 : 40))
                     .opacity(burst ? 0 : 1)
             }
         }
@@ -429,12 +410,12 @@ private struct StateBadge: View {
         case .thinking:
             TypingBubble()
         case .waitingForApproval:
-            badge("hand.raised.fill", Theme.amber)
-                .phaseAnimator([1.0, 1.15]) { view, s in view.scaleEffect(s) } animation: { _ in .easeInOut(duration: 0.6) }
+            badge("hand.raised.fill", Theme.warning)
+                .phaseAnimator([1.0, 1.12]) { view, s in view.scaleEffect(s) } animation: { _ in .easeInOut(duration: 0.6) }
         case .completed:
-            badge("checkmark", Theme.green)
+            badge("checkmark", Theme.success)
         case .error:
-            badge("exclamationmark", Theme.rose)
+            badge("exclamationmark", Theme.danger)
         default:
             EmptyView()
         }
@@ -442,12 +423,12 @@ private struct StateBadge: View {
 
     private func badge(_ symbol: String, _ color: Color) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 16, weight: .black))
+            .font(.system(size: 15, weight: .bold))
             .foregroundStyle(.white)
-            .frame(width: 38, height: 38)
+            .frame(width: 36, height: 36)
             .background(Circle().fill(color))
             .overlay(Circle().stroke(.white, lineWidth: 3))
-            .shadow(color: color.opacity(0.5), radius: 10, y: 4)
+            .shadow(color: color.opacity(0.35), radius: 8, y: 3)
     }
 }
 
@@ -456,8 +437,8 @@ private struct TypingBubble: View {
         HStack(spacing: 5) {
             ForEach(0..<3, id: \.self) { i in
                 Circle()
-                    .fill(Theme.purple)
-                    .frame(width: 7, height: 7)
+                    .fill(Theme.accent)
+                    .frame(width: 6, height: 6)
                     .phaseAnimator([0.35, 1.0]) { view, o in
                         view.opacity(o).offset(y: o == 1 ? -2 : 1)
                     } animation: { _ in .easeInOut(duration: 0.45).delay(Double(i) * 0.15) }
@@ -465,6 +446,7 @@ private struct TypingBubble: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Capsule().fill(.white).shadow(color: Theme.purple.opacity(0.2), radius: 8, y: 3))
+        .background(Capsule().fill(Theme.card).shadow(color: .black.opacity(0.08), radius: 8, y: 3))
+        .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
     }
 }

@@ -1,105 +1,166 @@
 import AppKit
 import SwiftUI
 
-/// The Orbito mark: a glowing core circled by a tilted orbit and a satellite,
-/// on a deep indigo tile. Drawn with shapes so it stays crisp at any size.
-struct OrbitoMark: View {
-    var size: CGFloat = 40
+/// The Orbito "O": a heavy ring circled by a tilted orbit and a satellite.
+/// The orbit is a tapered stroke, thickest at the lower left and thinning to points
+/// on either side of the satellite. Where it crosses the ring, thin gaps in the
+/// `knockout` colour (the background behind the glyph) separate the two.
+struct OrbitoGlyph: View {
+    /// Outer diameter of the ring.
+    var size: CGFloat
+    var color: Color
+    var knockout: Color
 
-    private static let tilt = Angle.degrees(-28)
-    private static let tile = LinearGradient(
-        colors: [Color(red: 0.10, green: 0.11, blue: 0.29), Color(red: 0.24, green: 0.17, blue: 0.53)],
-        startPoint: .topLeading, endPoint: .bottomTrailing)
-    private static let ring = LinearGradient(colors: [Theme.cyan, Theme.blue, Theme.purple, Theme.pink],
-                                             startPoint: .leading, endPoint: .trailing)
+    var orbit = Orbit()
+
+    /// Orbit geometry in units of `size`, relative to the ring's centre. Angles in degrees.
+    struct Orbit {
+        var semiMajor = 0.84
+        var semiMinor = 0.30
+        var tilt = -32.0
+        var centreOffset = CGPoint(x: 0, y: 0.03)
+        var gapCentre = -34.0      // where the satellite sits (upper right)
+        var gapHalfWidth = 18.0
+        var maxThickness = 0.105
+    }
 
     var body: some View {
-        let ringWidth = size * 0.78, ringHeight = size * 0.30, stroke = size * 0.045
+        let ringWidth = size * 0.2
+        let canvas = CGSize(width: size * 1.9, height: size * 1.4)
 
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-                .fill(Self.tile)
-                .overlay(
-                    RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-                        .stroke(LinearGradient(colors: [.white.opacity(0.28), .white.opacity(0.02)],
-                                               startPoint: .top, endPoint: .bottom),
-                                lineWidth: max(0.5, size * 0.012))
-                )
-
-            // Full orbit behind the core; the front half is redrawn on top below.
-            Ellipse()
-                .stroke(Self.ring, lineWidth: stroke)
-                .frame(width: ringWidth, height: ringHeight)
-                .rotationEffect(Self.tilt)
-
             Circle()
-                .fill(RadialGradient(
-                    colors: [Color(red: 0.75, green: 0.97, blue: 1.0), Theme.cyan, Theme.blue, Theme.purple],
-                    center: UnitPoint(x: 0.34, y: 0.30), startRadius: 0, endRadius: size * 0.24))
-                .frame(width: size * 0.36, height: size * 0.36)
-                .shadow(color: Theme.cyan.opacity(0.55), radius: size * 0.08)
+                .stroke(color, lineWidth: ringWidth)
+                .frame(width: size - ringWidth, height: size - ringWidth)
 
-            // Front half and satellite pass in front of the core.
-            ZStack {
-                Ellipse()
-                    .trim(from: 0, to: 0.5)
-                    .stroke(Self.ring, lineWidth: stroke)
-                    .frame(width: ringWidth, height: ringHeight)
-                Circle()
-                    .fill(LinearGradient(colors: [.white, Theme.pink], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: size * 0.10, height: size * 0.10)
-                    .shadow(color: Theme.pink.opacity(0.8), radius: size * 0.04)
-                    .offset(x: ringWidth / 2 * cos(.pi * 0.2), y: ringHeight / 2 * sin(.pi * 0.2))
+            Canvas { context, area in
+                let centre = CGPoint(x: area.width / 2, y: area.height / 2)
+                let gap = max(1, size * 0.045)
+                let samples = orbitSamples(centre: centre)
+
+                // Knockout pass first, so the orbit cuts cleanly through the ring.
+                for pass in 0..<2 {
+                    for (a, b, width) in samples {
+                        var segment = Path()
+                        segment.move(to: a)
+                        segment.addLine(to: b)
+                        let w = pass == 0 ? width + gap * 2 : width
+                        context.stroke(segment, with: .color(pass == 0 ? knockout : color),
+                                       style: StrokeStyle(lineWidth: w, lineCap: .round))
+                    }
+                }
+
+                // Satellite in the orbit's opening.
+                let dot = point(at: rad(orbit.gapCentre), centre: centre, scale: 1.04)
+                let r = size * 0.095
+                context.fill(Path(ellipseIn: CGRect(x: dot.x - r - gap, y: dot.y - r - gap,
+                                                    width: (r + gap) * 2, height: (r + gap) * 2)),
+                             with: .color(knockout))
+                context.fill(Path(ellipseIn: CGRect(x: dot.x - r, y: dot.y - r, width: r * 2, height: r * 2)),
+                             with: .color(color))
             }
-            .rotationEffect(Self.tilt)
+            .frame(width: canvas.width, height: canvas.height)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    /// Line segments along the orbit with their stroke widths.
+    private func orbitSamples(centre: CGPoint) -> [(CGPoint, CGPoint, CGFloat)] {
+        let steps = 160
+        let start = rad(orbit.gapCentre + orbit.gapHalfWidth)
+        let sweep = 2 * Double.pi - 2 * rad(orbit.gapHalfWidth)
+        return (0..<steps).map { i in
+            let t0 = Double(i) / Double(steps), t1 = Double(i + 1) / Double(steps)
+            let taper = pow(sin(Double.pi * (t0 + t1) / 2), 0.9)
+            let width = size * orbit.maxThickness * max(0.08, taper)
+            return (point(at: start + sweep * t0, centre: centre),
+                    point(at: start + sweep * t1, centre: centre),
+                    width)
+        }
+    }
+
+    /// A point on the tilted orbit (angles in screen coordinates, y pointing down).
+    private func point(at angle: Double, centre: CGPoint, scale: Double = 1) -> CGPoint {
+        let x = orbit.semiMajor * cos(angle) * scale, y = orbit.semiMinor * sin(angle) * scale
+        let tilt = rad(orbit.tilt)
+        let rx = x * cos(tilt) - y * sin(tilt) + orbit.centreOffset.x
+        let ry = x * sin(tilt) + y * cos(tilt) + orbit.centreOffset.y
+        return CGPoint(x: centre.x + rx * size, y: centre.y + ry * size)
+    }
+
+    private func rad(_ degrees: Double) -> Double { degrees * .pi / 180 }
+}
+
+/// The full wordmark: the orbit "O" followed by "rbito".
+struct OrbitoWordmark: View {
+    /// Height of the "O" (roughly the ascender height of the letters).
+    var height: CGFloat = 30
+    var glyphColor: Color = Theme.accent
+    var textColor: Color = Theme.ink
+    var knockout: Color = Theme.background
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: height * 0.1) {
+            OrbitoGlyph(size: height, color: glyphColor, knockout: knockout)
+                .padding(.leading, height * 0.26)  // room for the orbit's left sweep
+            Text("rbito")
+                .font(.custom("AvenirNext-Bold", size: height * 1.24))
+                .tracking(-height * 0.02)
+                .foregroundStyle(textColor)
+                .alignmentGuide(.bottom) { $0[.lastTextBaseline] }
+        }
+        .accessibilityElement()
+        .accessibilityLabel(AppInfo.name)
+    }
+}
+
+/// App-icon style mark: the orbit "O" on a tile in the theme's accent colour.
+struct OrbitoMark: View {
+    var size: CGFloat = 40
+    /// Fixed theme (for icon export); nil follows the current theme.
+    var theme: AppTheme? = nil
+
+    var body: some View {
+        let palette = (theme ?? ThemeStore.shared.theme).palette
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.235, style: .continuous)
+                .fill(palette.accent)
+            OrbitoGlyph(size: size * 0.44, color: palette.onAccent, knockout: palette.accent)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
 }
 
-/// Logo tile plus wordmark, used in the window header.
+/// The header lockup.
 struct OrbitoLockup: View {
     var body: some View {
-        HStack(spacing: 11) {
-            OrbitoMark(size: 38)
-                .shadow(color: Theme.purple.opacity(0.28), radius: 8, y: 4)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(AppInfo.name)
-                    .font(.system(size: 21, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text("AI Assistant")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .tracking(0.6)
-                    .foregroundStyle(Theme.secondaryInk)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(AppInfo.name) AI Assistant")
+        OrbitoWordmark(height: 30)
     }
 }
 
 /// App icon artwork on the standard macOS icon grid (824 pt tile on a 1024 pt canvas).
 enum OrbitoIcon {
     @MainActor
-    static func image(pixels: CGFloat) -> NSImage? {
-        let canvas = pixels
-        let view = OrbitoMark(size: canvas * 824 / 1024)
-            .shadow(color: .black.opacity(0.22), radius: canvas * 0.02, y: canvas * 0.012)
-            .frame(width: canvas, height: canvas)
+    static func image(pixels: CGFloat, theme: AppTheme = ThemeStore.shared.theme) -> NSImage? {
+        let view = OrbitoMark(size: pixels * 824 / 1024, theme: theme)
+            .shadow(color: .black.opacity(0.22), radius: pixels * 0.02, y: pixels * 0.012)
+            .frame(width: pixels, height: pixels)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
         return renderer.nsImage
     }
 
     /// Writes an .iconset folder (for `iconutil -c icns`). Used by scripts/package.sh.
+    /// The bundled icon uses the brand's default orange theme.
     @MainActor
     static func exportIconset(to directory: URL) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for points in [16, 32, 128, 256, 512] {
             for scale in [1, 2] {
                 let name = "icon_\(points)x\(points)\(scale == 2 ? "@2x" : "").png"
-                guard let image = image(pixels: CGFloat(points * scale)),
+                guard let image = image(pixels: CGFloat(points * scale), theme: .orange),
                       let tiff = image.tiffRepresentation,
                       let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else {
                     throw CocoaError(.fileWriteUnknown)

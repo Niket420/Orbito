@@ -8,7 +8,7 @@ struct TaskView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Current task")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if let task = assistant.task {
@@ -37,7 +37,7 @@ private struct TaskDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("“\(task.instruction)”")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -46,7 +46,7 @@ private struct TaskDetails: View {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(task.message)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.secondaryInk)
                 }
             }
@@ -66,13 +66,13 @@ private struct TaskDetails: View {
 
             switch task.status {
             case .completed:
-                ResultBox(icon: "checkmark.seal.fill", tint: Theme.green, title: "Done",
+                ResultBox(icon: "checkmark.seal.fill", tint: Theme.success, title: "Done",
                           text: task.result ?? "Finished every step.")
             case .failed:
-                ResultBox(icon: "exclamationmark.bubble.fill", tint: Theme.rose, title: "Couldn't finish",
+                ResultBox(icon: "exclamationmark.bubble.fill", tint: Theme.danger, title: "Couldn't finish",
                           text: task.error ?? task.message) {
                     Button("Try again", systemImage: "arrow.clockwise", action: assistant.retry)
-                        .buttonStyle(SoftButtonStyle(tint: Theme.rose))
+                        .buttonStyle(SoftButtonStyle(tint: Theme.danger))
                         .disabled(!assistant.isConnected)
                 }
             case .cancelled:
@@ -83,7 +83,7 @@ private struct TaskDetails: View {
 
             if let planner = task.planner {
                 Text(planner == "mock" ? "Planned by the mock planner" : "Planned by \(planner.capitalized)")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Theme.secondaryInk.opacity(0.8))
             }
         }
@@ -100,16 +100,16 @@ private struct StepRow: View {
             icon.frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 3) {
                 Text(action.description)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(action.status == .skipped ? Theme.secondaryInk : Theme.ink)
                     .strikethrough(action.status == .skipped, color: Theme.secondaryInk)
                 if let error = action.error, action.status == .failed || action.attempt > 1 {
                     Text(error)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.rose)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.danger)
                 } else if let observation = action.observation, action.status == .succeeded {
                     Text(observation)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Theme.secondaryInk)
                         .lineLimit(2)
                 }
@@ -118,14 +118,14 @@ private struct StepRow: View {
             if action.requiresApproval {
                 Image(systemName: "hand.raised")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.amber)
+                    .foregroundStyle(Theme.warning)
                     .help("Needs your approval")
             }
         }
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(running ? Theme.blue.opacity(0.07) : Theme.background)
+                .fill(running ? Theme.accent.opacity(0.06) : Theme.surfaceMuted)
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Step \(index): \(action.description), \(action.status.rawValue)")
@@ -136,18 +136,18 @@ private struct StepRow: View {
         case .ready:
             ProgressView().controlSize(.small)
         case .succeeded:
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.green)
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
                 .transition(.scale.combined(with: .opacity))
         case .failed:
-            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.rose)
+            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.danger)
         case .awaitingApproval:
-            Image(systemName: "hand.raised.circle.fill").foregroundStyle(Theme.amber)
+            Image(systemName: "hand.raised.circle.fill").foregroundStyle(Theme.warning)
                 .symbolEffect(.pulse)
         case .skipped:
             Image(systemName: "minus.circle").foregroundStyle(Theme.secondaryInk.opacity(0.6))
         case .queued:
             Text("\(index)")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.secondaryInk)
                 .frame(width: 20, height: 20)
                 .overlay(Circle().stroke(Theme.hairline, lineWidth: 1.5))
@@ -162,10 +162,10 @@ private struct ApprovalBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Allow this step?", systemImage: "hand.raised.fill")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.amber)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.warning)
             Text("\(AppInfo.name) wants to \(action.description.prefix(1).lowercased() + action.description.dropFirst()) in the app you were using.")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
@@ -173,12 +173,12 @@ private struct ApprovalBanner: View {
                 Button("Deny") { assistant.respondToApproval(false) }
                     .buttonStyle(SoftButtonStyle(tint: Theme.secondaryInk))
                 Button("Approve") { assistant.respondToApproval(true) }
-                    .buttonStyle(GradientButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle())
             }
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.amber.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.amber.opacity(0.35), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.warning.opacity(0.10)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.warning.opacity(0.35), lineWidth: 1))
         .transition(.scale(scale: 0.95).combined(with: .opacity))
     }
 }
@@ -208,10 +208,10 @@ private struct ResultBox<Accessory: View>: View {
                     .symbolEffect(.bounce, value: title)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(tint)
                     Text(text)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
@@ -231,17 +231,17 @@ struct StatusChip: View {
     private var style: (Color, String) {
         switch status {
         case .pending: (Theme.secondaryInk, "clock")
-        case .running: (Theme.blue, "bolt.fill")
-        case .waitingForApproval: (Theme.amber, "hand.raised.fill")
-        case .completed: (Theme.green, "checkmark")
-        case .failed: (Theme.rose, "xmark")
+        case .running: (Theme.accent, "bolt.fill")
+        case .waitingForApproval: (Theme.warning, "hand.raised.fill")
+        case .completed: (Theme.success, "checkmark")
+        case .failed: (Theme.danger, "xmark")
         case .cancelled: (Theme.secondaryInk, "stop.fill")
         }
     }
 
     var body: some View {
         Label(status.label, systemImage: style.1)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(style.0)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -264,16 +264,16 @@ private struct EmptyTaskState: View {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Theme.brand)
+                    .foregroundStyle(Theme.accent)
                     .frame(width: 44, height: 44)
-                    .background(Circle().fill(Theme.purple.opacity(0.08)))
+                    .background(Circle().fill(Theme.surfaceMuted))
                 Text("Your task's progress will show up here, step by step.")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.secondaryInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text("Try saying")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.secondaryInk)
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(examples, id: \.self) { example in
@@ -281,7 +281,7 @@ private struct EmptyTaskState: View {
                         Label(example, systemImage: "quote.opening")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(SoftButtonStyle(tint: Theme.purple))
+                    .buttonStyle(SoftButtonStyle())
                 }
             }
         }
