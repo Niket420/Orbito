@@ -8,6 +8,8 @@ are never trusted.
 
 from __future__ import annotations
 
+import json
+import re
 from typing import Any, Protocol
 
 
@@ -43,3 +45,15 @@ class LLMProvider(Protocol):
     def propose_plan(self, instruction: str) -> dict[str, Any]:
         """Blocking call; run it off the event loop."""
         ...
+
+
+def json_object_from_text(text: str) -> dict[str, Any] | None:
+    """Fallback for models that answer with JSON in prose instead of a tool call."""
+    match = re.search(r"\{.*\}", text or "", re.S)
+    if not match:
+        return None
+    try:
+        value = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None

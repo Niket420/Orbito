@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Development helper for Whisper.
+# Development helper for Orbito.
 #
 #   scripts/dev.sh setup     Create backend/.venv and install dependencies (incl. Whistle)
 #   scripts/dev.sh app       Build and run the macOS app (it starts the backend itself)
@@ -32,7 +32,7 @@ case "${1:-app}" in
         require_venv
         cd "$ROOT/macos"
         swift build
-        exec "$(swift build --show-bin-path)/Whisper"
+        exec "$(swift build --show-bin-path)/Orbito"
         ;;
     backend)
         require_venv

@@ -86,7 +86,7 @@ final class APIClient: Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw APIError(kind: .offline, message: "Can't reach the Whisper backend.")
+            throw APIError(kind: .offline, message: "Can't reach the Orbito backend.")
         }
 
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -99,7 +99,7 @@ final class APIClient: Sendable {
             default: .server
             }
             throw APIError(kind: kind, message: kind == .unauthorized
-                           ? "The backend rejected Whisper's access token. Restart the backend from Settings."
+                           ? "The backend rejected Orbito's access token. Restart the backend from Settings."
                            : message)
         }
 

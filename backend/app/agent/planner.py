@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 from app.config import Settings
 from app.llm.base import LLMProvider, LLMUnavailableError
@@ -32,30 +33,48 @@ class Planner:
         return plan
 
 
+def _bedrock(settings: Settings) -> LLMProvider:
+    from app.llm.bedrock import BedrockProvider, credentials_available
+
+    if settings.bedrock_api_key and not os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
+        # boto3 reads Bedrock API keys only from this environment variable.
+        os.environ["AWS_BEARER_TOKEN_BEDROCK"] = settings.bedrock_api_key.get_secret_value()
+    if not settings.bedrock_model_id:
+        raise LLMUnavailableError("ORBITO_BEDROCK_MODEL_ID is not set")
+    if not credentials_available():
+        raise LLMUnavailableError("no AWS credentials found")
+    return BedrockProvider(settings.bedrock_model_id, settings.aws_region, settings.bedrock_timeout_seconds)
+
+
+def _groq(settings: Settings) -> LLMProvider:
+    from app.llm.groq import GroqProvider
+
+    if not settings.groq_api_key:
+        raise LLMUnavailableError("GROQ_API_KEY is not set")
+    if not settings.groq_model_id:
+        raise LLMUnavailableError("ORBITO_GROQ_MODEL_ID is not set")
+    return GroqProvider(
+        settings.groq_api_key.get_secret_value(), settings.groq_model_id, settings.groq_timeout_seconds
+    )
+
+
+_PROVIDERS = {"bedrock": _bedrock, "groq": _groq}
+
+
 def build_llm_provider(settings: Settings) -> LLMProvider:
-    """Choose Bedrock when configured; otherwise the explicitly labelled mock."""
+    """Use the configured provider; in "auto", the first fully configured one, else the labelled mock."""
     if settings.llm_provider == "mock":
         return MockLLMProvider()
 
-    from app.llm.bedrock import BedrockProvider, credentials_available
-
-    reason = None
-    if not settings.bedrock_model_id:
-        reason = "WHISPER_BEDROCK_MODEL_ID is not set"
-    elif not credentials_available():
-        reason = "no AWS credentials found"
-
-    if reason is None:
+    names = list(_PROVIDERS) if settings.llm_provider == "auto" else [settings.llm_provider]
+    reasons = {}
+    for name in names:
         try:
-            return BedrockProvider(
-                settings.bedrock_model_id,
-                settings.aws_region,
-                settings.bedrock_timeout_seconds,
-            )
+            return _PROVIDERS[name](settings)
         except LLMUnavailableError as exc:
-            reason = str(exc)
+            reasons[name] = str(exc)
 
-    if settings.llm_provider == "bedrock":
-        raise RuntimeError(f"Bedrock is required but unavailable: {reason}")
-    log.warning("llm_fallback_to_mock", extra={"reason": reason})
+    if settings.llm_provider != "auto":
+        raise RuntimeError(f"{settings.llm_provider} is required but unavailable: {reasons}")
+    log.warning("llm_fallback_to_mock", extra={"reasons": reasons})
     return MockLLMProvider()

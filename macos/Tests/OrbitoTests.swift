@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Whisper
+@testable import Orbito
 
 private func action(_ type: String, _ parameters: [String: JSONValue], approval: Bool = false) -> ActionDTO {
     ActionDTO(actionId: "abc123def456", type: type, parameters: parameters, description: "", requiresApproval: approval,

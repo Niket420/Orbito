@@ -9,18 +9,18 @@ let infoPlist = URL(fileURLWithPath: #filePath)
     .appendingPathComponent("Resources/Info.plist").path
 
 let package = Package(
-    name: "Whisper",
+    name: "Orbito",
     platforms: [.macOS(.v14)],
-    products: [.executable(name: "Whisper", targets: ["Whisper"])],
+    products: [.executable(name: "Orbito", targets: ["Orbito"])],
     targets: [
         .executableTarget(
-            name: "Whisper",
+            name: "Orbito",
             path: "Sources",
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT",
                               "-Xlinker", "__info_plist", "-Xlinker", infoPlist]),
             ]
         ),
-        .testTarget(name: "WhisperTests", dependencies: ["Whisper"], path: "Tests"),
+        .testTarget(name: "OrbitoTests", dependencies: ["Orbito"], path: "Tests"),
     ]
 )

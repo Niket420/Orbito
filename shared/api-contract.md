@@ -1,17 +1,17 @@
-# Whisper Backend API Contract
+# Orbito Backend API Contract
 
 Version 0.1.0. The Swift app (`macos/`) and Python backend (`backend/`) talk over
-HTTP + JSON on `http://127.0.0.1:8765` (port set by `WHISPER_PORT`).
+HTTP + JSON on `http://127.0.0.1:8765` (port set by `ORBITO_PORT`).
 
 ## Security
 
 - The server binds to `127.0.0.1` only, and rejects any `Host` header other than
   `127.0.0.1` or `localhost`. This prevents DNS-rebinding attacks.
 - Every endpoint except `GET /health` requires `Authorization: Bearer <token>`.
-- The token comes from `WHISPER_API_TOKEN`. If that is unset, it is read from
-  `~/Library/Application Support/Whisper/api-token`, which either side creates
+- The token comes from `ORBITO_API_TOKEN`. If that is unset, it is read from
+  `~/Library/Application Support/Orbito/api-token`, which either side creates
   with mode `0600` if it is missing. The app also passes the token to a backend it
-  starts itself through `WHISPER_API_TOKEN`.
+  starts itself through `ORBITO_API_TOKEN`.
 - The backend never returns or logs AWS credentials.
 
 ## Errors
@@ -68,7 +68,8 @@ Action `status` values:
 { "status": "ok", "version": "0.1.0", "llm_provider": "bedrock", "speech_provider": "whistle" }
 ```
 
-`llm_provider` / `speech_provider` is `"mock"` when a labelled mock is in use.
+`llm_provider` is `"groq"`, `"bedrock"`, or `"mock"`. `speech_provider` is
+`"whistle"` or `"mock"`. A value of `"mock"` means a labelled mock is in use.
 
 ### `POST /tasks` → 201
 

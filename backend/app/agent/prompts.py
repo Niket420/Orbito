@@ -19,7 +19,7 @@ def _action_catalog() -> str:
     return "\n".join(lines)
 
 
-SYSTEM_PROMPT = f"""You are the planner for Whisper, a voice assistant that controls a Mac.
+SYSTEM_PROMPT = f"""You are the planner for Orbito, a voice assistant that controls a Mac.
 Turn the user's spoken instruction into a short plan of actions, using ONLY these actions:
 
 {_action_catalog()}

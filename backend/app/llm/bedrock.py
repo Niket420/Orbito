@@ -7,9 +7,8 @@ returned by this module.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
+import os
 from typing import Any
 
 import boto3
@@ -33,6 +32,7 @@ from app.llm.base import (
     LLMThrottledError,
     LLMTimeoutError,
     LLMUnavailableError,
+    json_object_from_text,
 )
 
 log = logging.getLogger(__name__)
@@ -60,6 +60,8 @@ _TOOL_CONFIG = {
 
 
 def credentials_available() -> bool:
+    if os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
+        return True  # Bedrock API key
     try:
         return boto3.Session().get_credentials() is not None
     except BotoCoreError:
@@ -159,12 +161,7 @@ def extract_plan(response: Any) -> dict[str, Any]:
             raise LLMResponseError("The model's plan was not a JSON object.")
 
     text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
-    match = re.search(r"\{.*\}", text, re.S)
-    if match:
-        try:
-            plan = json.loads(match.group(0))
-            if isinstance(plan, dict):
-                return plan
-        except json.JSONDecodeError:
-            pass
-    raise LLMResponseError("The model didn't return a usable plan.")
+    plan = json_object_from_text(text)
+    if plan is None:
+        raise LLMResponseError("The model didn't return a usable plan.")
+    return plan

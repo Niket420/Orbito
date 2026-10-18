@@ -8,16 +8,16 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-DEFAULT_DATA_DIR = Path.home() / "Library" / "Application Support" / "Whisper"
+DEFAULT_DATA_DIR = Path.home() / "Library" / "Application Support" / "Orbito"
 TOKEN_FILE_NAME = "api-token"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="WHISPER_", env_file=".env", extra="ignore"
+        env_prefix="ORBITO_", env_file=".env", extra="ignore"
     )
 
     host: str = "127.0.0.1"
@@ -25,13 +25,25 @@ class Settings(BaseSettings):
     api_token: str | None = None
     data_dir: Path = DEFAULT_DATA_DIR
 
-    llm_provider: Literal["auto", "bedrock", "mock"] = "auto"
+    llm_provider: Literal["auto", "bedrock", "groq", "mock"] = "auto"
+
+    # Groq (OpenAI-compatible API). The key is never logged or returned.
+    groq_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("ORBITO_GROQ_API_KEY", "GROQ_API_KEY")
+    )
+    groq_model_id: str | None = None
+    groq_timeout_seconds: float = Field(default=30, gt=0, le=120)
+
     bedrock_model_id: str | None = None
     bedrock_timeout_seconds: float = Field(default=30, gt=0, le=120)
-    # Region follows the standard AWS variables; WHISPER_AWS_REGION overrides.
+    # Standard AWS names, read from the environment or backend/.env.
     aws_region: str | None = Field(
-        default_factory=lambda: os.environ.get("AWS_REGION")
-        or os.environ.get("AWS_DEFAULT_REGION")
+        default=None,
+        validation_alias=AliasChoices("ORBITO_AWS_REGION", "AWS_REGION", "AWS_DEFAULT_REGION"),
+    )
+    # Bedrock API key (an alternative to IAM credentials). Never logged or returned.
+    bedrock_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("AWS_BEARER_TOKEN_BEDROCK")
     )
 
     speech_provider: Literal["auto", "whistle", "mock"] = "auto"
@@ -44,10 +56,13 @@ class Settings(BaseSettings):
             raise ValueError("The backend may only bind to 127.0.0.1")
         return "127.0.0.1"
 
-    @field_validator("bedrock_model_id", "api_token")
+    @field_validator(
+        "bedrock_model_id", "api_token", "aws_region", "bedrock_api_key",
+        "groq_api_key", "groq_model_id", mode="before",
+    )
     @classmethod
     def _blank_is_none(cls, value: str | None) -> str | None:
-        return value.strip() or None if value else None
+        return value.strip() or None if isinstance(value, str) else value
 
 
 def resolve_api_token(settings: Settings) -> str:

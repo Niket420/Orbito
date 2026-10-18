@@ -61,14 +61,7 @@ private struct HeaderView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Theme.brand).frame(width: 36, height: 36)
-                Image(systemName: "waveform").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-            }
-            .shadow(color: Theme.purple.opacity(0.3), radius: 8, y: 4)
-            Text(AppInfo.name)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.ink)
+            OrbitoLockup()
 
             Spacer()
 

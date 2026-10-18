@@ -37,7 +37,7 @@ def build_speech(settings: Settings) -> SpeechRecognizer:
     if whistle_installed():
         return WhistleRecognizer()
     if settings.speech_provider == "whistle":
-        raise RuntimeError("WHISPER_SPEECH_PROVIDER=whistle but cactus-needle is not installed")
+        raise RuntimeError("ORBITO_SPEECH_PROVIDER=whistle but cactus-needle is not installed")
     log.warning("speech_fallback_to_mock", extra={"reason": "cactus-needle not installed"})
     return MockSpeechRecognizer()
 
@@ -95,7 +95,7 @@ def create_app(
         )
         yield
 
-    app = FastAPI(title="Whisper Backend", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="Orbito Backend", version=__version__, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
     app.state.api_token = api_token or resolve_api_token(settings)
     app.state.speech = speech_recognizer or build_speech(settings)
@@ -134,7 +134,7 @@ def _exit_with_parent(parent_pid: int) -> None:
 def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
-    parent = os.environ.get("WHISPER_PARENT_PID", "")
+    parent = os.environ.get("ORBITO_PARENT_PID", "")
     if parent.isdigit():
         _exit_with_parent(int(parent))
     uvicorn.run(

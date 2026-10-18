@@ -3,7 +3,7 @@ import AppKit
 /// Observes which app is in front, so actions can be verified and input goes to the right app.
 @MainActor
 final class ScreenObserver {
-    /// The most recent frontmost app other than Whisper itself.
+    /// The most recent frontmost app other than Orbito itself.
     private(set) var lastExternalApp: NSRunningApplication?
     private var token: NSObjectProtocol?
 

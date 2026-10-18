@@ -152,3 +152,87 @@ def test_extract_plan_text_fallback_and_malformed():
         extract_plan({"output": {"message": {"content": [{"text": "no json here"}]}}})
     with pytest.raises(LLMResponseError):
         extract_plan({"unexpected": True})
+
+
+# ----- Groq --------------------------------------------------------------------
+
+import json as _json
+
+import httpx
+
+from app.agent.planner import build_llm_provider
+from app.config import Settings
+from app.llm.groq import GroqProvider
+
+
+def _groq(handler):
+    client = httpx.Client(base_url="https://api.groq.com/openai/v1", transport=httpx.MockTransport(handler))
+    return GroqProvider("key", "openai/gpt-oss-120b", client=client)
+
+
+def _tool_call(plan):
+    message = {"role": "assistant", "tool_calls": [
+        {"id": "1", "type": "function", "function": {"name": "propose_plan", "arguments": _json.dumps(plan)}}]}
+    return httpx.Response(200, json={"choices": [{"message": message}]})
+
+
+def test_groq_returns_tool_call_plan():
+    seen = {}
+
+    def handler(request):
+        seen.update(_json.loads(request.content))
+        return _tool_call({"summary": "s", "actions": []})
+
+    assert _groq(handler).propose_plan("hi") == {"summary": "s", "actions": []}
+    assert seen["model"] == "openai/gpt-oss-120b"
+    assert seen["tool_choice"]["function"]["name"] == "propose_plan"
+
+
+def test_groq_retries_rate_limit_then_succeeds(monkeypatch):
+    monkeypatch.setattr("app.llm.groq.time.sleep", lambda s: None)
+    responses = iter([httpx.Response(429, headers={"retry-after": "0"}), _tool_call({"actions": []})])
+    assert _groq(lambda r: next(responses)).propose_plan("hi") == {"actions": []}
+
+
+@pytest.mark.parametrize(
+    "response, expected",
+    [
+        (httpx.Response(401, json={"error": {"code": "invalid_api_key"}}), LLMAuthError),
+        (httpx.Response(429, json={"error": {"code": "rate_limit_exceeded"}}), LLMThrottledError),
+        (httpx.Response(400, json={"error": {"code": "tool_use_failed"}}), LLMResponseError),
+        (httpx.Response(200, json={"choices": [{"message": {"content": "no plan"}}]}), LLMResponseError),
+        (httpx.Response(200, json={"unexpected": True}), LLMResponseError),
+    ],
+)
+def test_groq_maps_errors(monkeypatch, response, expected):
+    monkeypatch.setattr("app.llm.groq.time.sleep", lambda s: None)
+    with pytest.raises(expected):
+        _groq(lambda r: response).propose_plan("hi")
+
+
+def test_groq_timeout():
+    def handler(request):
+        raise httpx.ReadTimeout("slow", request=request)
+
+    with pytest.raises(LLMTimeoutError):
+        _groq(handler).propose_plan("hi")
+
+
+def test_provider_selection(monkeypatch):
+    for var in ("GROQ_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "AWS_ACCESS_KEY_ID", "AWS_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    base = dict(_env_file=None, bedrock_model_id=None)
+    assert build_llm_provider(Settings(**base)).name == "mock"
+    groq = Settings(**base, GROQ_API_KEY="gsk_SECRET123", groq_model_id="m")
+    assert build_llm_provider(groq).name == "groq"
+    assert "gsk_SECRET123" not in repr(groq)
+    with pytest.raises(RuntimeError):
+        build_llm_provider(Settings(**base, llm_provider="groq"))
+
+
+def test_env_file_key_names_are_case_insensitive(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("groq_api_key=abc\nORBITO_GROQ_MODEL_ID=m\nAWS_REGION=\n")
+    s = Settings(_env_file=env)
+    assert s.groq_api_key.get_secret_value() == "abc"
+    assert s.aws_region is None

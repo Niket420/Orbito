@@ -97,7 +97,7 @@ final class BackendManager {
         launchAttempts += 1
         guard let dir = backendDirectory ?? Self.locateBackend() else {
             launchAttempts = Self.maxLaunchAttempts
-            connection = .offline("Backend folder not found. Set WHISPER_BACKEND_DIR or start it with scripts/dev.sh.")
+            connection = .offline("Backend folder not found. Set ORBITO_BACKEND_DIR or start it with scripts/dev.sh.")
             return
         }
         backendDirectory = dir
@@ -114,12 +114,12 @@ final class BackendManager {
         process.currentDirectoryURL = dir
 
         var env = ProcessInfo.processInfo.environment
-        env["WHISPER_API_TOKEN"] = TokenStore.loadOrCreate()
-        env["WHISPER_PORT"] = String(port)
+        env["ORBITO_API_TOKEN"] = TokenStore.loadOrCreate()
+        env["ORBITO_PORT"] = String(port)
         env["PYTHONUNBUFFERED"] = "1"
         env["NEEDLE_TELEMETRY"] = "0"
         // Lets the backend exit on its own if this app crashes or is force-quit.
-        env["WHISPER_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+        env["ORBITO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
         process.environment = env
 
         if let log = Self.openLogFile() {
@@ -157,7 +157,7 @@ final class BackendManager {
     static func locateBackend() -> URL? {
         let fm = FileManager.default
         var candidates: [URL] = []
-        if let override = ProcessInfo.processInfo.environment["WHISPER_BACKEND_DIR"] {
+        if let override = ProcessInfo.processInfo.environment["ORBITO_BACKEND_DIR"] {
             candidates.append(URL(fileURLWithPath: override))
         }
         if let bundled = Bundle.main.resourceURL?.appendingPathComponent("backend") {

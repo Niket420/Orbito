@@ -3,12 +3,26 @@ import SwiftUI
 
 enum AppInfo {
     /// The assistant's display name. Change it here to rename the app's UI.
-    static let name = "Whisper"
+    static let name = "Orbito"
 }
 
 @main
 struct VoiceAssistantApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    init() {
+        // `Orbito --export-iconset <dir>` renders the app icon for scripts/package.sh, then exits.
+        let args = CommandLine.arguments
+        if let flag = args.firstIndex(of: "--export-iconset"), args.indices.contains(flag + 1) {
+            do {
+                try OrbitoIcon.exportIconset(to: URL(fileURLWithPath: args[flag + 1]))
+                exit(0)
+            } catch {
+                FileHandle.standardError.write(Data("Icon export failed: \(error)\n".utf8))
+                exit(1)
+            }
+        }
+    }
 
     var body: some Scene {
         WindowGroup(AppInfo.name) {
@@ -35,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when launched as a bare SwiftPM executable rather than a .app bundle.
         NSApp.setActivationPolicy(.regular)
+        // Dock icon when run unbundled (`swift run`); the .app also ships AppIcon.icns.
+        NSApp.applicationIconImage = OrbitoIcon.image(pixels: 512)
         NSApp.activate(ignoringOtherApps: true)
         installTerminationSignalHandlers()
         controller.backend.start()

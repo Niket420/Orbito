@@ -112,11 +112,11 @@ final class ActionExecutor {
         return .ok("Pressed \((modifiers + [key]).joined(separator: "+")). \(observer.describeFront())")
     }
 
-    /// Ensures Accessibility permission and that input goes to the user's app, not Whisper.
+    /// Ensures Accessibility permission and that input goes to the user's app, not Orbito.
     private func prepareForInput() async -> ExecutionOutcome? {
         guard AccessibilityController.isTrusted else {
             AccessibilityController.requestTrust()
-            return .failure("Whisper needs Accessibility permission to type. Turn it on in System Settings → "
+            return .failure("Orbito needs Accessibility permission to type. Turn it on in System Settings → "
                             + "Privacy & Security → Accessibility, then try again.", retryable: false)
         }
         if observer.isSelfFrontmost {

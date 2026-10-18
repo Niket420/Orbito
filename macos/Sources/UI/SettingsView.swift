@@ -16,7 +16,8 @@ struct SettingsView: View {
                     Text(reason).font(.caption).foregroundStyle(Theme.rose)
                 }
                 if let health = assistant.backend.health {
-                    LabeledContent("Planner", value: providerLabel(health.llmProvider, real: "AWS Bedrock"))
+                    LabeledContent("Planner", value: providerLabel(health.llmProvider,
+                                                                   real: health.llmProvider == "groq" ? "Groq" : "AWS Bedrock"))
                     LabeledContent("Speech", value: providerLabel(health.speechProvider, real: "Cactus Whistle (on-device)"))
                 }
                 LabeledContent("Address", value: assistant.backend.client.baseURL.absoluteString)
