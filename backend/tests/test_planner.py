@@ -236,3 +236,46 @@ def test_env_file_key_names_are_case_insensitive(tmp_path):
     s = Settings(_env_file=env)
     assert s.groq_api_key.get_secret_value() == "abc"
     assert s.aws_region is None
+
+
+# ----- plan schema & retry -----------------------------------------------------
+
+from app.agent.planner import Planner
+from app.agent.prompts import PLAN_TOOL_SCHEMA
+from app.policy.permissions import ACTION_SPECS
+
+
+def test_tool_schema_requires_each_actions_parameters():
+    options = PLAN_TOOL_SCHEMA["properties"]["actions"]["items"]["anyOf"]
+    by_type = {o["properties"]["type"]["enum"][0]: o["properties"]["parameters"] for o in options}
+    assert set(by_type) == {t.value for t in ACTION_SPECS}
+    assert by_type["open_application"]["required"] == ["application_name"]
+    assert by_type["search_web"]["required"] == ["query"]
+    assert "application_name" in by_type["search_web"]["properties"]
+    assert all(p["additionalProperties"] is False for p in by_type.values())
+
+
+class SequenceLLM:
+    name = "seq"
+
+    def __init__(self, *plans):
+        self.plans, self.prompts = list(plans), []
+
+    def propose_plan(self, instruction):
+        self.prompts.append(instruction)
+        return self.plans.pop(0)
+
+
+async def test_planner_retries_rejected_plan_with_feedback():
+    bad = {"actions": [{"type": "open_application", "parameters": {}}]}
+    good = {"actions": [{"type": "open_application", "parameters": {"application_name": "Google Chrome"}}]}
+    llm = SequenceLLM(bad, good)
+    plan = await Planner(llm).plan("Open Chrome")
+    assert plan.actions[0].parameters == {"application_name": "Google Chrome"}
+    assert "is missing “application_name”" in llm.prompts[1]
+
+
+async def test_planner_gives_up_after_one_retry():
+    bad = {"actions": [{"type": "open_application", "parameters": {}}]}
+    with pytest.raises(PlanValidationError, match="is missing “application_name”"):
+        await Planner(SequenceLLM(bad, bad)).plan("Open Chrome")

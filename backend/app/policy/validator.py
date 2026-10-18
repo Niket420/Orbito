@@ -55,10 +55,14 @@ def validate_action(raw: Any, index: int = 0) -> ValidatedAction:
     try:
         params = spec.params.model_validate(params_raw)
     except ValidationError as exc:
-        detail = exc.errors()[0].get("msg", "invalid parameters")
-        raise PlanValidationError(
-            f"Step {index + 1} ({action_type.value}) is invalid: {detail}"
-        ) from None
+        error = exc.errors()[0]
+        field = ".".join(str(part) for part in error.get("loc", ())) or "parameters"
+        if error.get("type") == "missing":
+            detail = f"is missing “{field}”"
+        else:
+            reason = str(error.get("msg", "invalid value")).removeprefix("Value error, ")
+            detail = f"has an invalid “{field}”: {reason}"
+        raise PlanValidationError(f"Step {index + 1} ({action_type.value}) {detail}.") from None
 
     if isinstance(params, PressKeyParams) and params.is_blocked():
         raise PlanValidationError(

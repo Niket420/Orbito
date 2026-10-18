@@ -9,7 +9,7 @@ import os
 from app.config import Settings
 from app.llm.base import LLMProvider, LLMUnavailableError
 from app.llm.mock import MockLLMProvider
-from app.policy.validator import ValidatedPlan, validate_plan
+from app.policy.validator import PlanValidationError, ValidatedPlan, validate_plan
 
 log = logging.getLogger(__name__)
 
@@ -23,9 +23,22 @@ class Planner:
         return self.llm.name
 
     async def plan(self, instruction: str) -> ValidatedPlan:
-        """Ask the LLM for a plan and validate it. Raises LLMError or PlanValidationError."""
+        """Ask the LLM for a plan and validate it. Raises LLMError or PlanValidationError.
+
+        A rejected plan gets one retry, with the validator's error passed back so the
+        model can correct it. The retry is validated just as strictly.
+        """
         raw = await asyncio.to_thread(self.llm.propose_plan, instruction)
-        plan = validate_plan(raw)
+        try:
+            plan = validate_plan(raw)
+        except PlanValidationError as exc:
+            log.warning("plan_rejected_retrying", extra={"provider": self.llm.name, "error": str(exc)})
+            correction = (
+                f"{instruction}\n\n[Your previous plan was rejected: {exc} "
+                "Return a corrected plan with every required parameter filled in.]"
+            )
+            raw = await asyncio.to_thread(self.llm.propose_plan, correction)
+            plan = validate_plan(raw)
         log.info(
             "plan_validated",
             extra={"provider": self.llm.name, "actions": [a.type.value for a in plan.actions]},

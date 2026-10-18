@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from app.policy.permissions import ACTION_SPECS
+from typing import Any
+
+from pydantic import BaseModel
+
+from app.policy.permissions import (
+    ACTION_SPECS,
+    ALLOWED_KEYS,
+    ALLOWED_MODIFIERS,
+    ActionType,
+    PressKeyParams,
+)
 from app.policy.validator import MAX_ACTIONS
 
 PLAN_TOOL_NAME = "propose_plan"
@@ -29,6 +39,8 @@ Rules:
 - Use at most {MAX_ACTIONS} actions, in the order they should run.
 - Prefer search_web or open_url over typing into a browser's address bar.
 - When the user names a browser, pass it as application_name on open_url/search_web.
+- Every action must include all of its required parameters. For example, "open Chrome"
+  is {{"type": "open_application", "parameters": {{"application_name": "Google Chrome"}}}}.
 - Use full macOS application names (e.g. "Visual Studio Code", "System Settings").
 - press_key keys: return, tab, escape, space, delete, arrow keys (up/down/left/right),
   a-z, 0-9; modifiers: command, shift, option, control.
@@ -40,6 +52,42 @@ Rules:
   interpret it sensibly, but never invent steps the user did not ask for.
 """
 
+def _parameters_schema(params_model: type[BaseModel]) -> dict[str, Any]:
+    """JSON Schema for one action's parameters, derived from its Pydantic model."""
+    schema = params_model.model_json_schema()
+    properties = {}
+    for name, prop in schema.get("properties", {}).items():
+        prop = {k: v for k, v in prop.items() if k not in ("title", "default")}
+        if "anyOf" in prop:  # Optional[X]: describe X; optionality comes from "required"
+            inner = next(p for p in prop.pop("anyOf") if p.get("type") != "null")
+            prop = {**inner, **prop}
+        properties[name] = prop
+    if params_model is PressKeyParams:
+        properties["key"]["enum"] = sorted(ALLOWED_KEYS)
+        properties["modifiers"]["items"] = {"type": "string", "enum": sorted(ALLOWED_MODIFIERS)}
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": schema.get("required", []),
+        "additionalProperties": False,
+    }
+
+
+def _action_schema(action_type: ActionType) -> dict[str, Any]:
+    spec = ACTION_SPECS[action_type]
+    return {
+        "type": "object",
+        "description": spec.summary,
+        "properties": {
+            "type": {"type": "string", "enum": [action_type.value]},
+            "parameters": _parameters_schema(spec.params),
+        },
+        "required": ["type", "parameters"],
+        "additionalProperties": False,
+    }
+
+
+# Each action spells out its exact parameters, so the model can't leave required ones out.
 PLAN_TOOL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -47,14 +95,7 @@ PLAN_TOOL_SCHEMA = {
         "actions": {
             "type": "array",
             "maxItems": MAX_ACTIONS,
-            "items": {
-                "type": "object",
-                "properties": {
-                    "type": {"type": "string", "enum": [t.value for t in ACTION_SPECS]},
-                    "parameters": {"type": "object"},
-                },
-                "required": ["type", "parameters"],
-            },
+            "items": {"anyOf": [_action_schema(t) for t in ACTION_SPECS]},
         },
         "unsupported_reason": {
             "type": ["string", "null"],
