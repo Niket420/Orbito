@@ -1,4 +1,11 @@
-# Orbito: a voice assistant for macOS
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/orbito-logo-dark.png">
+    <img src="docs/assets/orbito-logo-light.png" alt="Orbito" width="360">
+  </picture>
+</p>
+
+<p align="center"><b>A voice assistant for macOS</b></p>
 
 Hold the mic button and say what you want, for example "Open Safari and search
 for AI news". Orbito turns your speech into text on your Mac, lets you review or
@@ -164,3 +171,9 @@ Remaining work:
 - Streaming transcription: Whistle supports streaming, but the app doesn't use it yet.
 - Wake-word activation.
 - Vision-based observation.
+
+## Active project
+
+Orbito is under active development, so features, the API and the UI change often.
+Up next: a notch-based interface, the "Wake up Orbito" wake word, and more accurate
+on-device speech recognition.
