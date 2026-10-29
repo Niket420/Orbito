@@ -276,13 +276,15 @@ private struct ComposerCard: View {
                           level: assistant.audioLevel,
                           enabled: assistant.canRecord || assistant.isRecording,
                           onPress: assistant.startRecording,
-                          onRelease: assistant.stopRecording,
+                          onRelease: { assistant.stopRecording() },
                           onToggle: assistant.toggleRecording)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(assistant.isRecording ? "Listening…" : "Hold to talk")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(assistant.isRecording ? Theme.accent : Theme.ink)
-                    Text(assistant.isRecording ? "Release to finish" : "Review the text, then send")
+                    Text(assistant.isRecording ? "Release to finish"
+                         : assistant.shortcut.isActive ? "Or hold \(assistant.shortcut.combo.label) anywhere"
+                         : "Review the text, then send")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.secondaryInk)
                 }

@@ -45,6 +45,7 @@ struct VoiceAssistantApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let controller = AssistantController()
     private var signalSources: [DispatchSourceSignal] = []
+    private var notch: NotchWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when launched as a bare SwiftPM executable rather than a .app bundle.
@@ -54,6 +55,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         installTerminationSignalHandlers()
         controller.backend.start()
+
+        // Hold-to-talk from anywhere, with status shown in the notch.
+        controller.shortcut.onPress = { [weak controller] in controller?.shortcutPressed() }
+        controller.shortcut.onRelease = { [weak controller] in controller?.shortcutReleased() }
+        controller.shortcut.register()
+        notch = NotchWindowController(assistant: controller)
+        notch?.show()
     }
 
     /// Treat SIGTERM/SIGINT (e.g. `kill`, Ctrl-C in a terminal) as a normal quit so the backend is stopped.
@@ -71,5 +79,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.backend.stop()
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    /// Keep running in the notch after the window closes; quit with ⌘Q.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }

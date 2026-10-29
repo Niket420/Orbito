@@ -253,3 +253,81 @@ Remaining before implementation
 3. Decide how the packaged macOS application will start, supervise, and stop the Python backend.
 4. Establish the implementation sequence.
 5. Begin development and validate each component incrementally.
+
+14. Design Decisions (why this, why not that)
+
+LLM provider
+
+* Groq (openai/gpt-oss-120b) is the active planner. AWS Bedrock is implemented, but the available AWS account blocks Bedrock API keys with a service control policy.
+* Plans use forced tool calling with a separate JSON schema for each action type. A generic schema let the model return empty parameters (for example, "open Chrome" without application_name).
+* A rejected plan is retried once, and the validation error is sent back to the model so it can correct the plan.
+
+Speech-to-text
+
+* Cactus Whistle is kept because it is about 17 MB and runs on the Mac.
+* Larger models are more accurate, but use around 1 GB of RAM, which is too heavy for an assistant that is always running.
+* Accuracy problem (for example, "Chrome" heard as "Crown"): planned fix is Whistle keyword biasing with installed app names, plus sending the list of installed apps to the planner.
+
+Notch UI
+
+* The panel is non-activating, so it never takes keyboard focus from the user's app.
+* All content is drawn below the camera notch, never beside it. The notch is solid hardware and hid content placed next to it on the M2 Air.
+
+Keyboard shortcut
+
+* Uses Carbon hot keys, because they report both press and release (needed for hold-to-talk) and need no extra macOS permission.
+* Every shortcut must include ⌘ or ⌃. Since macOS 15, shortcuts that use only ⌥ or ⇧⌥ register without an error but never fire.
+* The default is ⌃⌥ Space. Users can record their own shortcut in Settings.
+* "Launch at login" is offered because an app cannot listen for a shortcut while it isn't running.
+
+Wake word ("Hey Orbito"): planned, not built
+
+User flow:
+
+1. Open Orbito and press the shortcut once. Orbito is now on and waiting.
+2. Say "Hey Orbito", or click the mic, to start listening.
+3. Say the command. It is sent automatically when the user stops talking.
+4. Orbito goes back to waiting. Pressing the shortcut again turns it off.
+
+How "Hey Siri" works, and why Orbito copies its design:
+
+* A tiny always-on model on a low-power chip spots the phrase.
+* A bigger model double-checks it.
+* A voice profile confirms the speaker is the owner.
+* Apple does not let other apps use Siri's wake-word detector. The only route is through Siri itself ("Hey Siri, Orbito"), which can be added later through App Intents as an extra way in.
+
+Chosen pipeline:
+
+Step	Component	Why
+1. Spot the phrase	openWakeWord, with a custom "Hey Orbito" model (about 3 MB)	Free, offline, low CPU, can run all the time
+2. Confirm	Whistle (already in the app)	Turns the clip into text and checks for "hey orbito", which cuts false triggers. Runs only when step 1 fires.
+3. End of command	Silero VAD (about 2 MB)	Detects when the user stops talking so the command can be sent automatically
+
+* Voice matching (speaker verification) is dropped. It adds computation and setup, and for a personal Mac app, others being able to wake Orbito is acceptable.
+* Whistle does not run continuously. While the user speaks the command, only Silero runs. When Silero detects silence, recording stops, Whistle transcribes the clip once, and the text goes to the LLM.
+
+Why openWakeWord over the alternatives:
+
+* Picovoice Porcupine: most accurate and needs no training, but needs an account key and a paid license for commercial use.
+* sherpa-onnx keyword spotting: free and needs no training (the phrase is given as text), but is usually less accurate. Good for a quick prototype.
+* Vosk restricted to one phrase: works, but is bigger (about 40 MB) and uses more CPU.
+* Transcribing everything and matching the text: heaviest on battery and CPU, and "Orbito" is often misheard.
+* Few-shot voice fingerprint: weak with other voices and with background noise.
+
+Training openWakeWord:
+
+* openWakeWord has no ready-made "Hey Orbito" model, so the team trains one once with openWakeWord's Colab notebook (about an hour).
+* The notebook generates thousands of synthetic voice clips, so no recordings are needed. Because it learns the words from many voices, it works for every user without per-user training.
+* For prototyping, the ready-made "Hey Jarvis" model can be used. The ready-made models are licensed for non-commercial use only.
+
+Why Silero VAD:
+
+* A simple volume threshold treats fans, music and typing as speech, so the recording never ends.
+* WebRTC VAD makes more mistakes when there is background noise.
+* Silero is small, fast and accurate even with noise. It is pre-trained, MIT-licensed and can be used directly.
+
+Audio privacy:
+
+* Audio is kept in memory and sent only to the local backend on the same Mac.
+* Whistle reads a temporary file that is deleted automatically straight after transcription. Only the text is kept.
+* While Orbito waits for the wake word, audio is checked in short pieces and discarded.

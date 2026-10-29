@@ -103,6 +103,23 @@ turned off (`NEEDLE_TELEMETRY=0`).
 If `cactus-needle` isn't installed, a **mock transcriber** returns a fixed sentence,
 and the app labels its output "Mock transcription".
 
+## The notch and the voice shortcut
+
+Hold **⌃⌥ Space** in any app, speak, then let go. Orbito grows down out of the
+MacBook's camera notch, with all its content below the notch so the hardware never
+hides it. While it listens it shows a live waveform. It then shows what it heard
+for about a second (click ✕ to cancel), and the progress of each step. Steps that
+need approval show **Allow** and **Deny** buttons right in the notch. When the task
+finishes, the notch slides back in.
+
+- The notch panel never takes keyboard focus, so you keep working in your app.
+- On displays without a notch, Orbito drops down from the top centre of the screen.
+- Closing the main window keeps Orbito running in the notch. Quit with ⌘Q.
+- Settings → Voice shortcut lets you record any shortcut that includes ⌘ or ⌃.
+  Since macOS 15, shortcuts that use only ⌥ or ⇧⌥ are silently ignored by the
+  system, so Orbito refuses them. The same section turns off automatic sending and
+  turns on **Launch Orbito at login** (packaged app only).
+
 ## Supported actions
 
 | Action | Example | Approval |
@@ -175,5 +192,5 @@ Remaining work:
 ## Active project
 
 Orbito is under active development, so features, the API and the UI change often.
-Up next: a notch-based interface, the "Wake up Orbito" wake word, and more accurate
-on-device speech recognition.
+Up next: the "Wake up Orbito" wake word and more accurate on-device speech
+recognition.

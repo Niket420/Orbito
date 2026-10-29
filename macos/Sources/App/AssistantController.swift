@@ -46,8 +46,15 @@ final class AssistantController {
     private(set) var transcriptionProvider: String?
     private(set) var task: TaskDTO?
     private(set) var localError: String?
+    /// Transcript from a shortcut session, about to be sent unless cancelled.
+    private(set) var pendingAutoSend: String?
+
+    /// System-wide hold-to-talk shortcut (registered by the app delegate).
+    let shortcut = VoiceShortcut()
+    static let autoSendDelay: Duration = .milliseconds(1200)
 
     private var wantsRecording = false
+    private var autoSendTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
     private var executedKeys = Set<String>()
     private var approvedActionIDs = Set<String>()
@@ -57,7 +64,7 @@ final class AssistantController {
     var state: AssistantState {
         if let previewState { return previewState }
         if isRecording { return .listening }
-        if isTranscribing || isSubmitting { return .thinking }
+        if isTranscribing || isSubmitting || pendingAutoSend != nil { return .thinking }
         if localError != nil { return .error }
         guard let task else { return .idle }
         switch task.status {
@@ -115,7 +122,9 @@ final class AssistantController {
         }
     }
 
-    func stopRecording() {
+    /// Stops recording and transcribes. With `autoSend`, the transcript is sent after a
+    /// short pause (shown in the notch) instead of waiting in the text box for review.
+    func stopRecording(autoSend: Bool = false) {
         wantsRecording = false
         guard isRecording else { return }
         let samples = audio.stop()
@@ -123,7 +132,7 @@ final class AssistantController {
         audioLevel = 0
 
         guard Double(samples.count) >= AudioCapture.sampleRate * 0.4 else {
-            localError = "That was very short. Hold the mic button while you speak."
+            localError = "That was very short. Hold to talk while you speak."
             return
         }
         isTranscribing = true
@@ -136,6 +145,7 @@ final class AssistantController {
                     localError = "I didn't catch that. Could you try again?"
                 } else {
                     draft = result.text
+                    if autoSend { scheduleAutoSend(result.text) }
                 }
             } catch {
                 localError = error.localizedDescription
@@ -145,6 +155,41 @@ final class AssistantController {
 
     func toggleRecording() {
         isRecording ? stopRecording() : startRecording()
+    }
+
+    // MARK: - Hold-to-talk shortcut
+
+    func shortcutPressed() {
+        guard !isRecording else { return }
+        cancelPendingSend()
+        guard isConnected else {
+            localError = "\(AppInfo.name) is still connecting. Try again in a moment."
+            return
+        }
+        guard !isTaskActive else { return }
+        startRecording()
+    }
+
+    func shortcutReleased() {
+        let autoSend = UserDefaults.standard.object(forKey: "autoSendShortcut") as? Bool ?? true
+        stopRecording(autoSend: autoSend)
+    }
+
+    func cancelPendingSend() {
+        autoSendTask?.cancel()
+        autoSendTask = nil
+        pendingAutoSend = nil
+    }
+
+    private func scheduleAutoSend(_ text: String) {
+        autoSendTask?.cancel()
+        pendingAutoSend = text
+        autoSendTask = Task {
+            try? await Task.sleep(for: Self.autoSendDelay)
+            guard !Task.isCancelled, pendingAutoSend == text else { return }
+            pendingAutoSend = nil
+            submit()
+        }
     }
 
     // MARK: - Tasks
