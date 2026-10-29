@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -49,9 +50,26 @@ final class AssistantController {
     /// Transcript from a shortcut session, about to be sent unless cancelled.
     private(set) var pendingAutoSend: String?
 
-    /// System-wide hold-to-talk shortcut (registered by the app delegate).
+    /// System-wide tap-to-talk shortcut (started by the app delegate).
     let shortcut = VoiceShortcut()
     static let autoSendDelay: Duration = .milliseconds(1200)
+
+    private let handsFree = HandsFreeListener()
+    /// Recording a command through the hands-free stream (shortcut or wake word).
+    private(set) var isHandsFreeListening = false
+    /// Listening for the wake word between commands (after the first shortcut tap).
+    private(set) var isWakeArmed = false
+    private(set) var wakeAvailable = false
+    private(set) var wakePhrase = "Hey Jarvis"
+    var wakeWordEnabled = UserDefaults.standard.object(forKey: "wakeWordEnabled") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(wakeWordEnabled, forKey: "wakeWordEnabled")
+            if !wakeWordEnabled { stopHandsFree() }
+        }
+    }
+
+    var isListening: Bool { isRecording || isHandsFreeListening }
+    var isWaitingForWakeWord: Bool { isWakeArmed && wakeAvailable && !isListening }
 
     private var wantsRecording = false
     private var autoSendTask: Task<Void, Never>?
@@ -63,7 +81,7 @@ final class AssistantController {
 
     var state: AssistantState {
         if let previewState { return previewState }
-        if isRecording { return .listening }
+        if isListening { return .listening }
         if isTranscribing || isSubmitting || pendingAutoSend != nil { return .thinking }
         if localError != nil { return .error }
         guard let task else { return .idle }
@@ -79,6 +97,7 @@ final class AssistantController {
 
     var statusDetail: String {
         if isRecording { return "Release the button when you're done speaking." }
+        if isHandsFreeListening { return "I'm listening. I'll send it when you stop talking." }
         if isTranscribing { return "Turning your voice into text…" }
         if isSubmitting { return "Sending your instruction…" }
         if let localError { return localError }
@@ -107,6 +126,7 @@ final class AssistantController {
         guard canRecord, !isRecording else { return }
         wantsRecording = true
         clearFinishedTask()
+        if handsFree.isOpen { handsFree.setMode(.idle) }
         Task {
             guard await AudioCapture.requestPermission() else {
                 localError = "Microphone access is off. Turn it on in System Settings → Privacy & Security → Microphone."
@@ -137,7 +157,10 @@ final class AssistantController {
         }
         isTranscribing = true
         Task {
-            defer { isTranscribing = false }
+            defer {
+                isTranscribing = false
+                refreshHandsFreeMode()
+            }
             do {
                 let result = try await SpeechClient(api: backend.client).transcribe(samples: samples)
                 transcriptionProvider = result.provider
@@ -157,28 +180,119 @@ final class AssistantController {
         isRecording ? stopRecording() : startRecording()
     }
 
-    // MARK: - Hold-to-talk shortcut
+    // MARK: - Shortcut and wake word
 
-    func shortcutPressed() {
-        guard !isRecording else { return }
+    /// Tap the shortcut: start listening; the command is sent when you stop talking.
+    /// Tapping again while listening sends it straight away.
+    func shortcutTapped() {
+        if isHandsFreeListening { handsFree.finish(); return }
+        if isRecording { stopRecording(autoSend: autoSendEnabled); return }  // fallback mode
         cancelPendingSend()
         guard isConnected else {
             localError = "\(AppInfo.name) is still connecting. Try again in a moment."
             return
         }
-        guard !isTaskActive else { return }
-        startRecording()
+        guard !isTaskActive, !isTranscribing, !isSubmitting else { return }
+        clearFinishedTask()
+        if wakeWordEnabled { isWakeArmed = true }
+        Task {
+            do {
+                try await openHandsFree()
+                handsFree.setMode(.command)
+                beginHandsFreeListening()
+            } catch {
+                // Hands-free isn't available (e.g. models not installed): plain recording,
+                // stopped by the next tap.
+                Log.app.notice("Hands-free unavailable, falling back to tap-to-record")
+                startRecording()
+            }
+        }
     }
 
-    func shortcutReleased() {
-        let autoSend = UserDefaults.standard.object(forKey: "autoSendShortcut") as? Bool ?? true
-        stopRecording(autoSend: autoSend)
+    /// Stops listening for the wake word until the shortcut is used again.
+    func stopHandsFree() {
+        isWakeArmed = false
+        isHandsFreeListening = false
+        handsFree.close()
+    }
+
+    var autoSendEnabled: Bool {
+        UserDefaults.standard.object(forKey: "autoSendShortcut") as? Bool ?? true
     }
 
     func cancelPendingSend() {
         autoSendTask?.cancel()
         autoSendTask = nil
-        pendingAutoSend = nil
+        if pendingAutoSend != nil {
+            pendingAutoSend = nil
+            refreshHandsFreeMode()
+        }
+    }
+
+    private func openHandsFree() async throws {
+        guard !handsFree.isOpen else { return }
+        handsFree.onLevel = { [weak self] level in
+            guard let self, self.isHandsFreeListening else { return }
+            self.audioLevel = level
+        }
+        handsFree.onEvent = { [weak self] event in self?.handle(event) }
+        try await handsFree.open(backend.client)
+    }
+
+    private func beginHandsFreeListening() {
+        cancelPendingSend()
+        clearFinishedTask()
+        isHandsFreeListening = true
+    }
+
+    private func handle(_ event: HandsFreeListener.Event) {
+        switch event {
+        case .ready(let wakeAvailable, let phrase):
+            self.wakeAvailable = wakeAvailable
+            if !phrase.isEmpty { wakePhrase = phrase.capitalized }
+        case .wake:
+            guard !isTaskActive, !isSubmitting, !isRecording else { handsFree.setMode(.idle); return }
+            NSSound(named: "Tink")?.play()
+            beginHandsFreeListening()
+        case .transcribing:
+            isHandsFreeListening = false
+            audioLevel = 0
+            isTranscribing = true
+        case .transcript(let text, let provider):
+            isTranscribing = false
+            transcriptionProvider = provider
+            if text.trimmed.isEmpty {
+                localError = "I didn't catch that. Could you try again?"
+            } else {
+                draft = text
+                if autoSendEnabled { scheduleAutoSend(text) }
+            }
+            refreshHandsFreeMode()
+        case .noSpeech:
+            isHandsFreeListening = false
+            audioLevel = 0
+            refreshHandsFreeMode()
+        case .error(let message):
+            localError = message
+            stopHandsFree()
+            isTranscribing = false
+        case .closed:
+            isTranscribing = false
+            stopHandsFree()
+        }
+    }
+
+    /// After each command: wait for the wake word again, pause while busy, or turn the
+    /// microphone off when the wake word isn't in use.
+    private func refreshHandsFreeMode() {
+        guard handsFree.isOpen, !isHandsFreeListening, !isTranscribing else { return }
+        if isTaskActive || isSubmitting || isRecording || pendingAutoSend != nil {
+            handsFree.setMode(.idle)
+        } else if isWakeArmed && wakeWordEnabled && wakeAvailable {
+            handsFree.setMode(.wake)
+        } else {
+            handsFree.close()
+        }
     }
 
     private func scheduleAutoSend(_ text: String) {
@@ -209,6 +323,7 @@ final class AssistantController {
                 startPolling(created.taskId)
             } catch {
                 localError = error.localizedDescription
+                refreshHandsFreeMode()
             }
         }
     }
@@ -258,7 +373,10 @@ final class AssistantController {
                     let latest = try await self.backend.client.task(id)
                     failures = 0
                     self.task = latest
-                    if latest.status.isTerminal { return }
+                    if latest.status.isTerminal {
+                        self.refreshHandsFreeMode()
+                        return
+                    }
                     if let action = latest.nextAction {
                         await self.run(action, taskID: id)
                         continue

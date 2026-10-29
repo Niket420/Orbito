@@ -1,5 +1,4 @@
 import AVFoundation
-import Carbon.HIToolbox
 import ServiceManagement
 import SwiftUI
 
@@ -25,22 +24,19 @@ struct SettingsView: View {
             }
 
             Section("Voice shortcut") {
-                let shortcut = assistant.shortcut
-                LabeledContent("Hold to talk") {
-                    HStack {
-                        ShortcutRecorder(shortcut: shortcut)
-                        if shortcut.combo != .defaultCombo {
-                            Button("Reset") { shortcut.combo = .defaultCombo }
-                        }
+                @Bindable var shortcut = assistant.shortcut
+                Picker("Start Orbito", selection: $shortcut.preset) {
+                    ForEach(ShortcutPreset.allCases) { preset in
+                        Text(preset.label).tag(preset)
                     }
                 }
-                switch shortcut.status {
-                case .active:
-                    Text("Hold \(shortcut.combo.label) in any app, speak, then let go.")
-                        .font(.caption).foregroundStyle(.secondary)
-                case .unavailable(let reason):
-                    Text(reason).font(.caption).foregroundStyle(Theme.danger)
-                }
+                Text("Press both keys together and let go. Orbito listens and sends your command "
+                     + "when you stop talking. Tap again to send straight away.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Then listen for “\(assistant.wakePhrase)”", isOn: $assistant.wakeWordEnabled)
+                Text("After the first tap, say “\(assistant.wakePhrase)” to give the next command "
+                     + "hands-free. The microphone stays on until you turn this off or quit.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Send automatically after speaking", isOn: $autoSendShortcut)
                 Toggle("Launch Orbito at login", isOn: Binding(get: { launchAtLogin.isOn },
                                                                set: { launchAtLogin.set($0) }))
@@ -115,55 +111,6 @@ struct SettingsView: View {
 
     private func providerLabel(_ provider: String, real: String) -> String {
         provider == "mock" ? "Mock (not configured)" : real
-    }
-}
-
-/// Click, then press the new shortcut. Esc cancels.
-private struct ShortcutRecorder: View {
-    let shortcut: VoiceShortcut
-    @State private var isRecording = false
-    @State private var monitor: Any?
-    @State private var rejection: String?
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 4) {
-            Button(isRecording ? "Press a shortcut…" : shortcut.combo.label) {
-                isRecording ? stop() : start()
-            }
-            .monospaced()
-            .help("Click, then press the keys you want to use. Esc cancels.")
-            if let rejection {
-                Text(rejection).font(.caption).foregroundStyle(Theme.danger)
-            }
-        }
-        .onDisappear(perform: stop)
-    }
-
-    private func start() {
-        rejection = nil
-        isRecording = true
-        shortcut.suspend()
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if event.keyCode == UInt16(kVK_Escape) {
-                stop()
-            } else if let combo = KeyCombo(event: event) {
-                if let problem = combo.problem {
-                    rejection = problem
-                } else {
-                    shortcut.combo = combo
-                    stop()
-                }
-            }
-            return nil  // swallow every key while recording
-        }
-    }
-
-    private func stop() {
-        if let monitor { NSEvent.removeMonitor(monitor) }
-        monitor = nil
-        guard isRecording else { return }
-        isRecording = false
-        shortcut.resume()
     }
 }
 

@@ -275,12 +275,16 @@ Notch UI
 
 Keyboard shortcut
 
-* Uses Carbon hot keys, because they report both press and release (needed for hold-to-talk) and need no extra macOS permission.
-* Every shortcut must include ⌘ or ⌃. Since macOS 15, shortcuts that use only ⌥ or ⇧⌥ register without an error but never fire.
-* The default is ⌃⌥ Space. Users can record their own shortcut in Settings.
+* The shortcut is a tap of two modifier keys: ⌃⌥ (the default), fn⌃ or ⌥⌘. A tap starts listening, and the command is sent when the user stops talking, so nothing has to be held down.
+* Modifier-only shortcuts can't be registered as macOS hot keys. Orbito samples the global modifier state about 30 times a second instead, which needs no permission. A tap counts only when exactly those two keys are pressed and released within 0.8 s with no other key in between, so shortcuts like ⌃⌥⌘T or ⌃→ don't trigger it.
+* Carbon hot keys (the first version) were dropped. Since macOS 15, ⌥-only shortcuts such as ⌥ Space register without an error but never fire, and a key recorder can't capture modifier-only combinations.
 * "Launch at login" is offered because an app cannot listen for a shortcut while it isn't running.
 
-Wake word ("Hey Orbito"): planned, not built
+Wake word: built with "Hey Jarvis" as a stand-in until the custom "Hey Orbito" model is trained
+
+* Set ORBITO_WAKE_WORD_MODEL to the trained .onnx path and ORBITO_WAKE_WORD_PHRASE to "hey orbito" to switch.
+* Hands-free audio is streamed over a local WebSocket (/voice/stream), so the backend does wake word, end-of-speech and transcription in one place.
+* Tested on synthetic speech: "Hey Charles" scored 0.99 on the Hey Jarvis model, and the Whistle double-check rejected it. This confirms that step is needed.
 
 User flow:
 

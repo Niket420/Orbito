@@ -18,12 +18,13 @@ from starlette.exceptions import HTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.agent.planner import Planner, build_llm_provider
-from app.api.routes import health, speech, tasks
+from app.api.routes import health, speech, tasks, voice
 from app.config import Settings, get_settings, resolve_api_token
 from app.logging.setup import configure_logging
 from app.speech.base import AudioFormatError, SpeechError, SpeechRecognizer
 from app.speech.cactus_whistle import WhistleRecognizer, whistle_installed
 from app.speech.mock import MockSpeechRecognizer
+from app.speech.voice_stream import build_voice_stream, prepare_models, voice_installed
 from app.storage.repository import TaskRepository
 from app.tasks.manager import TaskError, TaskManager
 
@@ -81,6 +82,7 @@ def create_app(
     task_manager: TaskManager | None = None,
     speech_recognizer: SpeechRecognizer | None = None,
     api_token: str | None = None,
+    voice_factory=build_voice_stream,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -89,6 +91,9 @@ def create_app(
         if isinstance(app.state.speech, WhistleRecognizer):
             # Warm the model in the background so the first transcription is fast.
             asyncio.get_running_loop().run_in_executor(None, _warm, app.state.speech)
+        if voice_installed():
+            # Fetch the wake-word and VAD models now rather than when listening starts.
+            asyncio.get_running_loop().run_in_executor(None, _prepare_voice, settings.wake_word_model)
         log.info(
             "backend_started",
             extra={"llm": app.state.task_manager.planner_name, "speech": app.state.speech.name},
@@ -97,6 +102,8 @@ def create_app(
 
     app = FastAPI(title="Orbito Backend", version=__version__, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+    app.state.settings = settings
+    app.state.voice_factory = voice_factory
     app.state.api_token = api_token or resolve_api_token(settings)
     app.state.speech = speech_recognizer or build_speech(settings)
     app.state.task_manager = task_manager or TaskManager(
@@ -107,6 +114,7 @@ def create_app(
     app.include_router(health.router)
     app.include_router(tasks.router)
     app.include_router(speech.router)
+    app.include_router(voice.router)
     return app
 
 
@@ -115,6 +123,13 @@ def _warm(recognizer: WhistleRecognizer) -> None:
         recognizer.load()
     except SpeechError:
         pass  # reported again, with a user-facing message, on first transcription
+
+
+def _prepare_voice(wake_model: str) -> None:
+    try:
+        prepare_models(wake_model)
+    except Exception as exc:  # noqa: BLE001 - reported again when listening starts
+        log.warning("voice_models_unavailable", extra={"error": type(exc).__name__})
 
 
 def _exit_with_parent(parent_pid: int) -> None:

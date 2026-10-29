@@ -31,7 +31,10 @@ final class AudioCapture {
     }
 
     /// Starts capturing. `onLevel` receives a 0...1 loudness value on the main queue.
-    func start(onLevel: @escaping (Double) -> Void) throws {
+    /// `onChunk` receives each converted chunk on the audio thread; with `keepSamples`
+    /// false nothing is accumulated (for continuous streaming).
+    func start(keepSamples: Bool = true, onChunk: (([Float]) -> Void)? = nil,
+               onLevel: @escaping (Double) -> Void) throws {
         guard !isRunning else { return }
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
@@ -59,7 +62,8 @@ final class AudioCapture {
             }
             guard error == nil, let channel = converted.floatChannelData?[0] else { return }
             let chunk = Array(UnsafeBufferPointer(start: channel, count: Int(converted.frameLength)))
-            self.lock.withLock { self.samples.append(contentsOf: chunk) }
+            if keepSamples { self.lock.withLock { self.samples.append(contentsOf: chunk) } }
+            onChunk?(chunk)
 
             let rms = sqrt(chunk.reduce(0) { $0 + $1 * $1 } / Float(max(chunk.count, 1)))
             let level = Double(min(1, rms * 10))

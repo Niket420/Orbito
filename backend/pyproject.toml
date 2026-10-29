@@ -13,9 +13,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Cactus Whistle speech-to-text (local, on-device). Without it the backend
+# Cactus Whistle speech-to-text and openWakeWord (wake word + Silero VAD), all
+# on-device. Without cactus-needle the backend
 # falls back to a clearly labelled mock transcriber.
-speech = ["cactus-needle>=3.2"]
+speech = ["cactus-needle>=3.2", "openwakeword>=0.6"]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27"]
 
 [build-system]

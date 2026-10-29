@@ -147,6 +147,30 @@ The body is raw `audio/wav`: 16 kHz, mono, 16-bit PCM, at most 10 MB.
 { "text": "Open Safari and search for AI news", "language": "en", "provider": "whistle", "duration_seconds": 2.49 }
 ```
 
+### `WebSocket /voice/stream`
+
+Hands-free listening. It needs the same `Authorization: Bearer` header as the other
+endpoints. The app streams raw 16 kHz mono 16-bit little-endian PCM as binary
+messages and controls the stream with JSON text messages:
+
+| App → backend | Meaning |
+|---|---|
+| `{"mode": "wake"}` | Listen for the wake word (openWakeWord), then double-check it with Whistle |
+| `{"mode": "command"}` | Record a command now, until the user stops talking (Silero VAD) |
+| `{"mode": "idle"}` | Ignore audio |
+| `{"action": "finish"}` | End the current command now |
+
+| Backend → app | Meaning |
+|---|---|
+| `{"type": "ready", "wake_available": true, "wake_phrase": "hey jarvis"}` | Models loaded |
+| `{"type": "wake"}` | Wake word confirmed; recording the command |
+| `{"type": "transcribing"}` | The user stopped talking |
+| `{"type": "transcript", "text": "...", "provider": "whistle"}` | The command as text |
+| `{"type": "no_speech"}` | Nothing was said within 6 s |
+| `{"type": "error", "message": "..."}` | The stream can't continue |
+
+After `transcript` or `no_speech`, the stream is idle until the app sets a mode again.
+
 ## Action allowlist
 
 The LLM can propose only these actions. The backend validates them strictly, and

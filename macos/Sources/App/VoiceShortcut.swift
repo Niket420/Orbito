@@ -1,166 +1,110 @@
-import AppKit
-import Carbon.HIToolbox
+import CoreGraphics
 import Foundation
 import Observation
 
-/// A key plus modifiers, stored with Carbon codes so it can be registered as a hot key.
-struct KeyCombo: Codable, Equatable {
-    var keyCode: UInt32
-    var modifiers: UInt32
-    /// The key's printed name ("Space", "O", "F5"), captured when it was recorded.
-    var keyName: String
+/// Two modifier keys pressed together and released (a "tap") start Orbito.
+enum ShortcutPreset: String, CaseIterable, Identifiable {
+    case controlOption
+    case fnControl
+    case optionCommand
 
-    static let defaultCombo = KeyCombo(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey | optionKey),
-                                       keyName: "Space")
+    var id: String { rawValue }
 
     var label: String {
-        var text = ""
-        if modifiers & UInt32(controlKey) != 0 { text += "⌃" }
-        if modifiers & UInt32(optionKey) != 0 { text += "⌥" }
-        if modifiers & UInt32(shiftKey) != 0 { text += "⇧" }
-        if modifiers & UInt32(cmdKey) != 0 { text += "⌘" }
-        return text + " " + keyName
-    }
-
-    /// Why this combo can't be used, or nil if it's fine.
-    /// Since macOS 15, shortcuts whose only modifiers are ⌥ or ⇧⌥ register without an
-    /// error but never fire, so every shortcut must include ⌘ or ⌃.
-    var problem: String? {
-        guard modifiers & UInt32(cmdKey | controlKey) != 0 else {
-            return "Include ⌘ or ⌃. macOS doesn't allow shortcuts that use only ⌥ or ⇧."
+        switch self {
+        case .controlOption: "⌃ Control + ⌥ Option"
+        case .fnControl: "fn + ⌃ Control"
+        case .optionCommand: "⌥ Option + ⌘ Command"
         }
-        return nil
     }
 
-    /// Builds a combo from a key press in the recorder; nil for keys that can't be named.
-    init?(event: NSEvent) {
-        let flags = event.modifierFlags
-        var modifiers = 0
-        if flags.contains(.control) { modifiers |= controlKey }
-        if flags.contains(.option) { modifiers |= optionKey }
-        if flags.contains(.shift) { modifiers |= shiftKey }
-        if flags.contains(.command) { modifiers |= cmdKey }
-        let code = Int(event.keyCode)
-        let name = Self.specialKeyNames[code]
-            ?? event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard let name, !name.isEmpty else { return nil }
-        self.init(keyCode: UInt32(code), modifiers: UInt32(modifiers), keyName: name)
+    var shortLabel: String {
+        switch self {
+        case .controlOption: "⌃⌥"
+        case .fnControl: "fn⌃"
+        case .optionCommand: "⌥⌘"
+        }
     }
 
-    init(keyCode: UInt32, modifiers: UInt32, keyName: String) {
-        self.keyCode = keyCode
-        self.modifiers = modifiers
-        self.keyName = keyName
+    var flags: CGEventFlags {
+        switch self {
+        case .controlOption: [.maskControl, .maskAlternate]
+        case .fnControl: [.maskSecondaryFn, .maskControl]
+        case .optionCommand: [.maskAlternate, .maskCommand]
+        }
     }
-
-    private static let specialKeyNames: [Int: String] = [
-        kVK_Space: "Space", kVK_Return: "Return", kVK_Tab: "Tab", kVK_Delete: "Delete",
-        kVK_ForwardDelete: "⌦", kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
-        kVK_Home: "Home", kVK_End: "End", kVK_PageUp: "Page Up", kVK_PageDown: "Page Down",
-        kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
-        kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
-    ]
 }
 
-/// A system-wide hold-to-talk shortcut. It uses Carbon hot keys, which report both
-/// key-down and key-up and need no extra macOS permission.
+/// Recognizes a tap of exactly the preset's modifiers: pressed together, then all
+/// released within `maxHold`, with no other key or modifier used in between (so
+/// shortcuts like ⌃⌥⌘T or ⌃→ never trigger it).
+struct ModifierTapDetector {
+    static let relevant: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand, .maskSecondaryFn]
+    static let maxHold: TimeInterval = 0.8
+
+    var target: CGEventFlags
+    private var pressedAt: TimeInterval?
+    private var spoiled = false
+
+    init(target: CGEventFlags) {
+        self.target = target
+    }
+
+    /// Feed the current modifier state; returns true when a tap completes.
+    mutating func update(flags rawFlags: CGEventFlags, now: TimeInterval, secondsSinceKeyDown: TimeInterval) -> Bool {
+        let flags = rawFlags.intersection(Self.relevant)
+        if flags.isEmpty {
+            defer { pressedAt = nil; spoiled = false }
+            guard let pressedAt, !spoiled else { return false }
+            let held = now - pressedAt
+            return held <= Self.maxHold && secondsSinceKeyDown > held
+        }
+        if flags == target {
+            if pressedAt == nil { pressedAt = now }
+        } else if !target.isSuperset(of: flags) {
+            spoiled = true  // another modifier joined in
+        }
+        return false
+    }
+}
+
+/// System-wide shortcut. Modifier keys can't be registered as hot keys, so the global
+/// modifier state is sampled about 30 times a second, which needs no macOS permission.
 @Observable @MainActor
 final class VoiceShortcut {
-    enum Status: Equatable {
-        case active
-        case unavailable(String)
-    }
+    private static let defaultsKey = "voiceShortcutPreset"
 
-    private static let defaultsKey = "voiceShortcutCombo"
-
-    var combo: KeyCombo {
+    var preset: ShortcutPreset {
         didSet {
-            if let data = try? JSONEncoder().encode(combo) {
-                UserDefaults.standard.set(data, forKey: Self.defaultsKey)
-            }
-            if isEnabled { register() }
+            UserDefaults.standard.set(preset.rawValue, forKey: Self.defaultsKey)
+            detector = ModifierTapDetector(target: preset.flags)
         }
     }
-    private(set) var status: Status = .unavailable("Not registered yet.")
-    var isActive: Bool { status == .active }
 
-    @ObservationIgnored var onPress: () -> Void = {}
-    @ObservationIgnored var onRelease: () -> Void = {}
-    @ObservationIgnored private var isEnabled = false
-    @ObservationIgnored private var isDown = false
-    @ObservationIgnored private var hotKeyRef: EventHotKeyRef?
-    @ObservationIgnored private var handlerRef: EventHandlerRef?
+    @ObservationIgnored var onTap: () -> Void = {}
+    @ObservationIgnored private var detector: ModifierTapDetector
+    @ObservationIgnored private var timer: Timer?
 
     init() {
-        let saved = UserDefaults.standard.data(forKey: Self.defaultsKey)
-            .flatMap { try? JSONDecoder().decode(KeyCombo.self, from: $0) }
-        combo = saved.flatMap { $0.problem == nil ? $0 : nil } ?? .defaultCombo
+        let saved = UserDefaults.standard.string(forKey: Self.defaultsKey).flatMap(ShortcutPreset.init(rawValue:))
+        preset = saved ?? .controlOption
+        detector = ModifierTapDetector(target: (saved ?? .controlOption).flags)
     }
 
-    func register() {
-        isEnabled = true
-        unregisterHotKey()
-        if let problem = combo.problem {
-            status = .unavailable(problem)
-            return
+    func start() {
+        guard timer == nil else { return }
+        let timer = Timer(timeInterval: 0.03, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.poll() }
         }
-        installHandlerIfNeeded()
-        var ref: EventHotKeyRef?
-        let id = EventHotKeyID(signature: OSType(0x4F52_4254), id: 1)  // 'ORBT'
-        let result = RegisterEventHotKey(combo.keyCode, combo.modifiers, id, GetApplicationEventTarget(), 0, &ref)
-        hotKeyRef = ref
-        if result == noErr && ref != nil {
-            status = .active
-        } else {
-            status = .unavailable("Another app is using \(combo.label). Pick a different shortcut.")
-            Log.app.notice("Voice shortcut \(self.combo.label, privacy: .public) unavailable (status \(result))")
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func poll() {
+        let flags = CGEventSource.flagsState(.combinedSessionState)
+        let sinceKey = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
+        if detector.update(flags: flags, now: ProcessInfo.processInfo.systemUptime, secondsSinceKeyDown: sinceKey) {
+            onTap()
         }
-    }
-
-    /// Releases the hot key while the Settings recorder listens, so pressing the
-    /// current shortcut there is recorded rather than starting a recording.
-    func suspend() {
-        unregisterHotKey()
-    }
-
-    func resume() {
-        if isEnabled { register() }
-    }
-
-    private func unregisterHotKey() {
-        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
-        hotKeyRef = nil
-        if isDown { onRelease() }
-        isDown = false
-    }
-
-    fileprivate func handle(pressed: Bool) {
-        // Ignore key-repeat presses while the shortcut is held.
-        if pressed {
-            guard !isDown else { return }
-            isDown = true
-            onPress()
-        } else {
-            guard isDown else { return }
-            isDown = false
-            onRelease()
-        }
-    }
-
-    private func installHandlerIfNeeded() {
-        guard handlerRef == nil else { return }
-        var specs = [
-            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
-            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
-        ]
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
-            guard let event, let context else { return OSStatus(eventNotHandledErr) }
-            let pressed = GetEventKind(event) == UInt32(kEventHotKeyPressed)
-            let shortcut = Unmanaged<VoiceShortcut>.fromOpaque(context).takeUnretainedValue()
-            // Application-target Carbon events are delivered on the main thread.
-            MainActor.assumeIsolated { shortcut.handle(pressed: pressed) }
-            return noErr
-        }, specs.count, &specs, context, &handlerRef)
     }
 }

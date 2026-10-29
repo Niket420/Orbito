@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import Orbito
@@ -59,7 +60,7 @@ struct NotchTests {
         #expect(NotchPhase.working("x").dismissKey == nil)
     }
 
-    @Test func layoutHidesInsideTheNotchAndGrowsOutOfIt() {
+    @MainActor @Test func layoutHidesInsideTheNotchAndGrowsOutOfIt() {
         let notch = NotchMetrics(notchWidth: 185, notchHeight: 32)
         let hidden = NotchLayout.size(for: .hidden, metrics: notch)
         let listening = NotchLayout.size(for: .listening, metrics: notch)
@@ -81,25 +82,34 @@ struct NotchTests {
 
 @Suite("Voice shortcut")
 struct ShortcutTests {
-    private func combo(_ modifiers: Int) -> KeyCombo {
-        KeyCombo(keyCode: 49, modifiers: UInt32(modifiers), keyName: "Space")
+    private let ctrlOpt: CGEventFlags = [.maskControl, .maskAlternate]
+
+    /// Feeds (time, flags) samples; returns how many taps fired.
+    private func taps(_ samples: [(TimeInterval, CGEventFlags)], keyDownAt: TimeInterval = -100) -> Int {
+        var detector = ModifierTapDetector(target: ctrlOpt)
+        return samples.filter { time, flags in
+            detector.update(flags: flags, now: time, secondsSinceKeyDown: time - keyDownAt)
+        }.count
     }
 
-    @Test func optionOnlyShortcutsAreRejected() {
-        // macOS 15 registers these without error but never delivers them.
-        #expect(combo(0x0800).problem != nil)            // ⌥
-        #expect(combo(0x0800 | 0x0200).problem != nil)   // ⇧⌥
-        #expect(combo(0).problem != nil)                 // no modifier
+    @Test func quickTapFires() {
+        #expect(taps([(0, .maskControl), (0.05, ctrlOpt), (0.2, .maskAlternate), (0.25, [])]) == 1)
     }
 
-    @Test func commandOrControlShortcutsAreAllowed() {
-        #expect(KeyCombo.defaultCombo.problem == nil)
-        #expect(combo(0x0100 | 0x0200).problem == nil)   // ⇧⌘
-        #expect(combo(0x1000).problem == nil)            // ⌃
+    @Test func longHoldDoesNot() {
+        #expect(taps([(0, ctrlOpt), (2, ctrlOpt), (2.1, [])]) == 0)
     }
 
-    @Test func labelsReadInMacOrder() {
-        #expect(KeyCombo.defaultCombo.label == "⌃⌥ Space")
-        #expect(combo(0x0100 | 0x0200 | 0x1000).label == "⌃⇧⌘ Space")
+    @Test func extraModifierOrKeySpoilsTheTap() {
+        // ⌃⌥⌘ chord
+        #expect(taps([(0, ctrlOpt), (0.1, [.maskControl, .maskAlternate, .maskCommand]), (0.2, [])]) == 0)
+        // ⌃⌥ + a key (e.g. ⌃⌥Space)
+        #expect(taps([(0, ctrlOpt), (0.3, [])], keyDownAt: 0.1) == 0)
+        // only one of the two keys
+        #expect(taps([(0, .maskControl), (0.1, [])]) == 0)
+    }
+
+    @Test func capsLockIsIgnored() {
+        #expect(taps([(0, [.maskControl, .maskAlternate, .maskAlphaShift]), (0.1, .maskAlphaShift)]) == 1)
     }
 }

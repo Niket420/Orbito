@@ -31,6 +31,16 @@ final class APIClient: Sendable {
         session = URLSession(configuration: config)
     }
 
+    /// The hands-free audio stream (see shared/api-contract.md, "WebSocket /voice/stream").
+    func voiceStream(session: URLSession = .shared) -> URLSessionWebSocketTask {
+        var components = URLComponents(url: baseURL.appendingPathComponent("voice/stream"),
+                                       resolvingAgainstBaseURL: false)!
+        components.scheme = "ws"
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return session.webSocketTask(with: request)
+    }
+
     func health() async throws -> HealthDTO {
         try await send("GET", "/health", timeout: 2)
     }

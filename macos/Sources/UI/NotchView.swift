@@ -136,7 +136,7 @@ struct NotchView: View {
 
     private var livePhase: NotchPhase {
         if let phaseOverride { return phaseOverride }
-        return NotchPhase.derive(isRecording: assistant.isRecording, isTranscribing: assistant.isTranscribing,
+        return NotchPhase.derive(isRecording: assistant.isListening, isTranscribing: assistant.isTranscribing,
                           pendingSend: assistant.pendingAutoSend, isSubmitting: assistant.isSubmitting,
                           task: assistant.task, localError: assistant.localError)
     }
