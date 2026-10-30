@@ -40,7 +40,7 @@ enum NotchPhase: Equatable {
     /// Phases with buttons; the panel accepts clicks only while one is showing.
     var isInteractive: Bool {
         switch self {
-        case .confirming, .approval: true
+        case .listening, .confirming, .approval: true
         default: false
         }
     }
@@ -54,10 +54,10 @@ enum NotchPhase: Equatable {
         }
     }
 
-    /// Extra content under the status row (countdown bar or approval buttons).
+    /// Extra content under the status row (agent switch, countdown bar or approval buttons).
     var hasExtra: Bool {
         switch self {
-        case .confirming, .approval: true
+        case .listening, .confirming, .approval: true
         default: false
         }
     }
@@ -83,7 +83,9 @@ enum NotchLayout {
             return metrics.hasNotch
                 ? CGSize(width: metrics.notchWidth + flare * 2, height: metrics.notchHeight)
                 : CGSize(width: minWidth * 0.5, height: 0)
-        case .listening, .transcribing, .thinking, .working, .done, .failed:
+        case .listening:
+            return CGSize(width: width, height: top + rowHeight + 30)
+        case .transcribing, .thinking, .working, .done, .failed:
             return CGSize(width: width, height: top + rowHeight)
         case .confirming:
             return CGSize(width: width, height: top + rowHeight + 10)
@@ -136,8 +138,19 @@ struct NotchView: View {
 
     private var livePhase: NotchPhase {
         if let phaseOverride { return phaseOverride }
-        return NotchPhase.derive(isRecording: assistant.isListening, isTranscribing: assistant.isTranscribing,
-                          pendingSend: assistant.pendingAutoSend, isSubmitting: assistant.isSubmitting,
+        let live = NotchPhase.derive(isRecording: assistant.isListening, isTranscribing: assistant.isTranscribing,
+                                     pendingSend: assistant.pendingAutoSend, isSubmitting: assistant.isSubmitting,
+                                     task: assistant.task, localError: assistant.localError)
+        // Agent mode is listening again straight away; show each result briefly first.
+        if live == .listening, assistant.isAgentMode, let key = finishedPhase.dismissKey, key != dismissedKey {
+            return finishedPhase
+        }
+        return live
+    }
+
+    /// The task's own phase, ignoring listening (done/failed when a task has finished).
+    private var finishedPhase: NotchPhase {
+        NotchPhase.derive(isRecording: false, isTranscribing: false, pendingSend: nil, isSubmitting: false,
                           task: assistant.task, localError: assistant.localError)
     }
 
@@ -166,8 +179,8 @@ struct NotchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: phase)
         .onChange(of: phase.isInteractive, initial: true) { _, interactive in onInteractiveChange(interactive) }
-        .onChange(of: livePhase) { _, live in
-            if live.dismissKey == nil { dismissedKey = nil }
+        .onChange(of: finishedPhase.dismissKey) { _, key in
+            if key == nil { dismissedKey = nil }
         }
         .task(id: livePhase.dismissKey) { await autoDismiss() }
         .onChange(of: assistant.audioLevel) { _, level in
@@ -205,7 +218,7 @@ struct NotchView: View {
     private func title(_ phase: NotchPhase) -> String {
         switch phase {
         case .hidden: ""
-        case .listening: "Listening…"
+        case .listening: assistant.isAgentMode ? "Agent mode · listening…" : "Listening…"
         case .transcribing: "Transcribing…"
         case .thinking: "Thinking…"
         case .confirming(let text): "“\(text)”"
@@ -247,6 +260,19 @@ struct NotchView: View {
     @ViewBuilder
     private func extra(_ phase: NotchPhase) -> some View {
         switch phase {
+        case .listening:
+            HStack(spacing: 8) {
+                Text("Agent mode").notchText(opacity: 0.9)
+                Text("talk freely, no wake word").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+                Spacer(minLength: 4)
+                Toggle("Agent mode", isOn: Binding(get: { assistant.isAgentMode },
+                                                   set: { assistant.setAgentMode($0) }))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .tint(accent)
+            }
+            .frame(height: 26)
         case .confirming:
             SendCountdown(color: accent)
         case .approval:

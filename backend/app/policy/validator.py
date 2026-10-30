@@ -38,6 +38,8 @@ class ValidatedPlan:
     summary: str
     actions: list[ValidatedAction]
     unsupported_reason: str | None = None
+    # The speech wasn't meant for Orbito (background talk, a half sentence).
+    not_a_command: bool = False
 
 
 def validate_action(raw: Any, index: int = 0) -> ValidatedAction:
@@ -92,5 +94,7 @@ def validate_plan(raw: Any) -> ValidatedPlan:
     reason = raw.get("unsupported_reason")
     reason = str(reason).strip()[:300] if reason else None
 
+    if raw.get("not_a_command") is True:
+        return ValidatedPlan(summary=summary, actions=[], not_a_command=True)
     actions = [validate_action(a, i) for i, a in enumerate(actions_raw)]
     return ValidatedPlan(summary=summary, actions=actions, unsupported_reason=reason)

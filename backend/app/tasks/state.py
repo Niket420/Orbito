@@ -60,6 +60,7 @@ class Task(BaseModel):
     error: str | None = None
     planner: str | None = None
     summary: str | None = None
+    session_id: str | None = None
     actions: list[TaskAction] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)

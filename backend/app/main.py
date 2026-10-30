@@ -23,6 +23,7 @@ from app.config import Settings, get_settings, resolve_api_token
 from app.logging.setup import configure_logging
 from app.speech.base import AudioFormatError, SpeechError, SpeechRecognizer
 from app.speech.cactus_whistle import WhistleRecognizer, whistle_installed
+from app.speech.groq_whisper import FallbackRecognizer, GroqWhisperRecognizer
 from app.speech.mock import MockSpeechRecognizer
 from app.speech.voice_stream import build_voice_stream, prepare_models, voice_installed
 from app.storage.repository import TaskRepository
@@ -32,14 +33,20 @@ __version__ = "0.1.0"
 log = logging.getLogger(__name__)
 
 
-def build_speech(settings: Settings) -> SpeechRecognizer:
+def build_speech(settings: Settings, whistle: WhistleRecognizer | None) -> SpeechRecognizer:
     if settings.speech_provider == "mock":
         return MockSpeechRecognizer()
-    if whistle_installed():
-        return WhistleRecognizer()
+    if settings.speech_provider in ("auto", "groq") and settings.groq_api_key:
+        groq = GroqWhisperRecognizer(settings.groq_api_key.get_secret_value(),
+                                     settings.groq_whisper_model, settings.speech_language)
+        return FallbackRecognizer(groq, whistle) if whistle else groq
+    if settings.speech_provider == "groq":
+        raise RuntimeError("ORBITO_SPEECH_PROVIDER=groq but GROQ_API_KEY is not set")
+    if whistle:
+        return whistle
     if settings.speech_provider == "whistle":
         raise RuntimeError("ORBITO_SPEECH_PROVIDER=whistle but cactus-needle is not installed")
-    log.warning("speech_fallback_to_mock", extra={"reason": "cactus-needle not installed"})
+    log.warning("speech_fallback_to_mock", extra={"reason": "no Groq key and cactus-needle not installed"})
     return MockSpeechRecognizer()
 
 
@@ -88,9 +95,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if isinstance(app.state.speech, WhistleRecognizer):
+        if isinstance(app.state.wake_verifier, WhistleRecognizer):
             # Warm the model in the background so the first transcription is fast.
-            asyncio.get_running_loop().run_in_executor(None, _warm, app.state.speech)
+            asyncio.get_running_loop().run_in_executor(None, _warm, app.state.wake_verifier)
         if voice_installed():
             # Fetch the wake-word and VAD models now rather than when listening starts.
             asyncio.get_running_loop().run_in_executor(None, _prepare_voice, settings.wake_word_model)
@@ -105,7 +112,10 @@ def create_app(
     app.state.settings = settings
     app.state.voice_factory = voice_factory
     app.state.api_token = api_token or resolve_api_token(settings)
-    app.state.speech = speech_recognizer or build_speech(settings)
+    whistle = WhistleRecognizer() if speech_recognizer is None and whistle_installed() else None
+    app.state.speech = speech_recognizer or build_speech(settings, whistle)
+    # Wake-word double-checks run often, so they stay on the Mac when Whistle is available.
+    app.state.wake_verifier = whistle or app.state.speech
     app.state.task_manager = task_manager or TaskManager(
         Planner(build_llm_provider(settings)),
         TaskRepository(settings.data_dir / "tasks.json"),

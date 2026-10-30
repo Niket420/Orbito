@@ -32,6 +32,19 @@ enum InputController {
         }
     }
 
+    /// Scrolls the window under the pointer. Scroll events go to whatever is under the
+    /// pointer, so if it's outside the target window it's moved to the window's centre first.
+    static func scroll(direction: String, lines: Int, in window: CGRect?) {
+        if let window, let pointer = CGEvent(source: nil)?.location, !window.contains(pointer) {
+            CGWarpMouseCursorPosition(CGPoint(x: window.midX, y: window.midY))
+        }
+        let vertical = direction == "up" ? lines : direction == "down" ? -lines : 0
+        let horizontal = direction == "left" ? lines : direction == "right" ? -lines : 0
+        let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2,
+                            wheel1: Int32(vertical), wheel2: Int32(horizontal), wheel3: 0)
+        event?.post(tap: .cghidEventTap)
+    }
+
     /// Presses a key with optional modifiers. Returns false for unknown keys.
     static func press(key: String, modifiers: [String]) -> Bool {
         guard let code = keyCodes[key] else { return false }

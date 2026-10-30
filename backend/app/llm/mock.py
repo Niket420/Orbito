@@ -54,6 +54,8 @@ class MockLLMProvider:
     name = "mock"
 
     def propose_plan(self, instruction: str) -> dict[str, Any]:
+        # Conversation history isn't understood by the rules; plan the current instruction.
+        instruction = instruction.rpartition("Current instruction: ")[2]
         actions: list[dict[str, Any]] = []
         browser: str | None = None
         for clause in _SPLIT.split(instruction.strip().rstrip(".!?")):

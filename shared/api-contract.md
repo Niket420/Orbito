@@ -73,9 +73,15 @@ Action `status` values:
 
 ### `POST /tasks` → 201
 
-Request: `{ "instruction": "Open Safari and search for AI news." }`. Unknown fields
-are rejected. The instruction is trimmed, control characters are removed, and it
-must be 1–1000 characters long.
+Request: `{ "instruction": "Open Safari and search for AI news.", "session_id": "3f2a…" }`.
+Unknown fields are rejected. The instruction is trimmed, control characters are
+removed, and it must be 1–1000 characters long. `session_id` is optional (8–32
+lowercase hex characters): tasks with the same session share context, so the planner
+sees up to 5 earlier turns and can resolve "now close it".
+
+If the planner decides the speech wasn't a request (background talk, an unfinished
+phrase), the task ends as `cancelled` with the message "That didn't sound like a
+request, so I ignored it."
 
 ```json
 { "task_id": "6f9fb9d3c22e48b1be63951278274a1c", "status": "pending", "message": "Task created" }
@@ -183,6 +189,8 @@ unknown parameters are rejected. The macOS app checks them again before executin
 | `search_web` | `query` (≤300), `application_name?` | low | no |
 | `type_text` | `text` (≤500) | **needs approval** | no |
 | `press_key` | `key` (return, tab, escape, space, delete, arrows, a–z, 0–9), `modifiers?` (command/shift/option/control) | **needs approval** | no |
+| `close_application` | `application_name` (quits normally; the app can still ask to save) | low | yes |
+| `scroll` | `direction` (up/down/left/right), `amount?` (lines, 1–30, default 5) | low | no |
 
 Shortcuts that quit apps, log out, lock the screen, force-quit or delete files
 (for example ⌘Q, ⌥⌘⎋, ⌘⌫) are always blocked. A plan can have at most 8 actions.

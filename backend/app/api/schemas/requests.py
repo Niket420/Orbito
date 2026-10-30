@@ -13,6 +13,8 @@ class _Request(BaseModel):
 
 class CreateTaskRequest(_Request):
     instruction: str = Field(min_length=1, max_length=MAX_INSTRUCTION_LENGTH * 2)
+    # Tasks with the same session share context ("open Calculator" … "now close it").
+    session_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{8,32}$")
 
     @field_validator("instruction")
     @classmethod

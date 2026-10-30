@@ -92,16 +92,20 @@ Orbito never switches to the mock planner on its own once Bedrock is configured.
 To require Bedrock, set `ORBITO_LLM_PROVIDER=bedrock`. Startup then fails if
 Bedrock isn't available.
 
-## Speech recognition (Cactus Whistle)
+## Speech recognition (Groq Whisper, with Whistle offline)
 
-Whistle runs on your Mac through the `cactus-needle` package, using its documented
-`needle.Whistle().transcribe(path)` API. The app records 16 kHz mono audio while
-you hold the mic, sends it as WAV to `POST /speech/transcribe`, and puts the
-transcript in the text box for you to edit. Whistle's anonymous usage telemetry is
-turned off (`NEEDLE_TELEMETRY=0`).
+When `GROQ_API_KEY` is set, commands are transcribed by **Whisper large-v3-turbo on
+Groq** (about 0.3 s, and far more accurate on accents and app names). The names of
+your installed apps are sent with each request as a vocabulary hint, so "Chrome"
+isn't heard as "Crown". The audio goes to Groq and is not stored by Orbito.
 
-If `cactus-needle` isn't installed, a **mock transcriber** returns a fixed sentence,
-and the app labels its output "Mock transcription".
+If Groq can't be reached, Orbito falls back to **Cactus Whistle** on your Mac
+(`cactus-needle`, about 17 MB, telemetry off). Whistle also does the quick
+wake-word double-check, so those clips never leave your Mac. With neither available,
+a **mock transcriber** returns a fixed sentence and the app labels it.
+
+Set `ORBITO_SPEECH_PROVIDER=whistle` to keep all audio on your Mac, and
+`ORBITO_SPEECH_LANGUAGE` if you speak to Orbito in a language other than English.
 
 ## The notch, the shortcut and the wake word
 
@@ -125,6 +129,19 @@ model also reacts to similar phrases. Turn it off from the main window or in Set
 - The notch panel never takes keyboard focus, and closing the main window keeps
   Orbito running in the notch. Quit with ⌘Q.
 
+### Agent mode
+
+Tap ⌃⌥ and turn on **Agent mode** with the switch in the notch. Now just talk: "open
+Calculator" → "type 2 plus 2" → "now close it" → "scroll down". There's no wake word
+and no keys between requests.
+
+- Orbito remembers the last few requests, so "it" and "that app" work.
+- Speech that isn't a request (a phone call, background talk) is ignored by the planner.
+- While a task runs, say **"stop"** to cancel it.
+- Short typing (up to 100 characters) runs without an Allow click; key presses and
+  longer text still ask.
+- Tap ⌃⌥ or flip the switch to turn it off. It also turns off after 5 quiet minutes.
+
 ## Supported actions
 
 | Action | Example | Approval |
@@ -132,7 +149,9 @@ model also reacts to similar phrases. Turn it off from the main window or in Set
 | Open an app | "Open Notes" | automatic |
 | Open a link (http/https only) | "Go to apple.com" | automatic |
 | Web search | "Search for AI news" | automatic |
-| Type text | "Type hello world" | **asks first** |
+| Close an app (normal quit) | "Close Calculator" | automatic |
+| Scroll the front window | "Scroll down" | automatic (needs Accessibility) |
+| Type text | "Type hello world" | **asks first** (short text is automatic in agent mode) |
 | Press a key or shortcut | "Press command t" | **asks first** |
 
 The backend and the app each enforce this list separately. Shortcuts that quit,

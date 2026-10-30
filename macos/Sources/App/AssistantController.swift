@@ -68,8 +68,20 @@ final class AssistantController {
         }
     }
 
-    var isListening: Bool { isRecording || isHandsFreeListening }
-    var isWaitingForWakeWord: Bool { isWakeArmed && wakeAvailable && !isListening }
+    /// Agent mode: listen continuously and run every request, no wake word needed.
+    private(set) var isAgentMode = false
+    static let agentIdleTimeout: Duration = .seconds(300)
+    /// Typing this short is approved automatically in agent mode; longer text still asks.
+    static let agentAutoApproveTextLimit = 100
+
+    /// Showing "listening" (the mic is also open while busy in agent mode, but only for "stop").
+    var isListening: Bool { isRecording || (isHandsFreeListening && !isBusy) }
+    var isWaitingForWakeWord: Bool { isWakeArmed && wakeAvailable && !isListening && !isAgentMode }
+    private var isBusy: Bool { isTaskActive || isSubmitting || isTranscribing || pendingAutoSend != nil }
+
+    private var sessionID = AssistantController.newSessionID()
+    private var lastTaskAt: Date?
+    private var agentIdleTask: Task<Void, Never>?
 
     private var wantsRecording = false
     private var autoSendTask: Task<Void, Never>?
@@ -185,6 +197,7 @@ final class AssistantController {
     /// Tap the shortcut: start listening; the command is sent when you stop talking.
     /// Tapping again while listening sends it straight away.
     func shortcutTapped() {
+        if isAgentMode { setAgentMode(false); return }
         if isHandsFreeListening { handsFree.finish(); return }
         if isRecording { stopRecording(autoSend: autoSendEnabled); return }  // fallback mode
         cancelPendingSend()
@@ -213,7 +226,56 @@ final class AssistantController {
     func stopHandsFree() {
         isWakeArmed = false
         isHandsFreeListening = false
+        isAgentMode = false
+        agentIdleTask?.cancel()
         handsFree.close()
+    }
+
+    func setAgentMode(_ on: Bool) {
+        guard on != isAgentMode else { return }
+        if on {
+            guard handsFree.isOpen else {
+                localError = "Tap \(shortcut.preset.shortLabel) first, then turn on agent mode."
+                return
+            }
+            isAgentMode = true
+            sessionID = Self.newSessionID()
+            noteAgentActivity()
+            if !isHandsFreeListening && !isBusy {
+                handsFree.setMode(.command)
+                isHandsFreeListening = true
+            }
+        } else {
+            isAgentMode = false
+            agentIdleTask?.cancel()
+            isHandsFreeListening = false
+            audioLevel = 0
+            handsFree.setMode(.idle)
+            refreshHandsFreeMode()
+        }
+    }
+
+    /// Agent mode turns itself off after a few quiet minutes.
+    private func noteAgentActivity() {
+        agentIdleTask?.cancel()
+        agentIdleTask = Task {
+            try? await Task.sleep(for: Self.agentIdleTimeout)
+            guard !Task.isCancelled else { return }
+            setAgentMode(false)
+        }
+    }
+
+    private static func newSessionID() -> String {
+        UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+    }
+
+    /// Tasks close together share a session, so "now close it" knows what "it" is.
+    private func currentSessionID() -> String {
+        if !isAgentMode, let lastTaskAt, Date().timeIntervalSince(lastTaskAt) > 300 {
+            sessionID = Self.newSessionID()
+        }
+        lastTaskAt = Date()
+        return sessionID
     }
 
     var autoSendEnabled: Bool {
@@ -261,6 +323,11 @@ final class AssistantController {
         case .transcript(let text, let provider):
             isTranscribing = false
             transcriptionProvider = provider
+            if isAgentMode {
+                handleAgentSpeech(text)
+                refreshHandsFreeMode()
+                return
+            }
             if text.trimmed.isEmpty {
                 localError = "I didn't catch that. Could you try again?"
             } else {
@@ -282,11 +349,33 @@ final class AssistantController {
         }
     }
 
-    /// After each command: wait for the wake word again, pause while busy, or turn the
-    /// microphone off when the wake word isn't in use.
+    /// In agent mode every request is sent without a wake word. While a task runs, only
+    /// "stop" is acted on; noise and chit-chat are dropped here or by the planner.
+    private func handleAgentSpeech(_ raw: String) {
+        let text = raw.trimmed
+        let words = text.lowercased().filter { $0.isLetter || $0 == " " }.trimmed
+        // Whisper sometimes "hears" these in silence or noise.
+        let noise: Set<String> = ["", "uh", "um", "hmm", "ok", "okay", "yeah", "thank you", "thanks",
+                                  "thanks for watching", "you", "bye"]
+        guard !noise.contains(words), words.count >= 2 else { return }
+        noteAgentActivity()
+        if isTaskActive || isSubmitting {
+            let stopWords: Set<String> = ["stop", "cancel", "stop it", "never mind", "nevermind", "wait"]
+            if stopWords.contains(words) { cancel() }
+            return
+        }
+        draft = text
+        scheduleAutoSend(text)
+    }
+
+    /// After each command: listen again (agent mode), wait for the wake word, pause while
+    /// busy, or turn the microphone off when the wake word isn't in use.
     private func refreshHandsFreeMode() {
         guard handsFree.isOpen, !isHandsFreeListening, !isTranscribing else { return }
-        if isTaskActive || isSubmitting || isRecording || pendingAutoSend != nil {
+        if isAgentMode && !isRecording {
+            handsFree.setMode(.command)
+            isHandsFreeListening = true
+        } else if isTaskActive || isSubmitting || isRecording || pendingAutoSend != nil {
             handsFree.setMode(.idle)
         } else if isWakeArmed && wakeWordEnabled && wakeAvailable {
             handsFree.setMode(.wake)
@@ -318,7 +407,7 @@ final class AssistantController {
         Task {
             defer { isSubmitting = false }
             do {
-                let created = try await backend.client.createTask(instruction)
+                let created = try await backend.client.createTask(instruction, sessionID: currentSessionID())
                 task = .placeholder(created, instruction: instruction)
                 startPolling(created.taskId)
             } catch {
@@ -373,6 +462,7 @@ final class AssistantController {
                     let latest = try await self.backend.client.task(id)
                     failures = 0
                     self.task = latest
+                    self.autoApproveIfAgent(latest)
                     if latest.status.isTerminal {
                         self.refreshHandsFreeMode()
                         return
@@ -391,6 +481,15 @@ final class AssistantController {
                 try? await Task.sleep(for: .milliseconds(400))
             }
         }
+    }
+
+    /// In agent mode, short typing into the app in front doesn't need a click.
+    private func autoApproveIfAgent(_ task: TaskDTO) {
+        guard isAgentMode, task.status == .waitingForApproval, let action = task.awaitingApproval,
+              action.type == "type_text", !approvedActionIDs.contains(action.actionId),
+              case .string(let text)? = action.parameters["text"],
+              text.count <= Self.agentAutoApproveTextLimit else { return }
+        respondToApproval(true)
     }
 
     private func run(_ dto: ActionDTO, taskID: String) async {

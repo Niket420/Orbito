@@ -31,6 +31,23 @@ enum AccessibilityController {
         return attribute(window as! AXUIElement, kAXTitleAttribute) as? String
     }
 
+    /// Frame of the frontmost app's focused window, in global top-left-origin coordinates.
+    static func frontWindowFrame() -> CGRect? {
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+              let window = attribute(AXUIElementCreateApplication(pid), kAXFocusedWindowAttribute),
+              CFGetTypeID(window) == AXUIElementGetTypeID() else { return nil }
+        // swiftlint:disable force_cast
+        let element = window as! AXUIElement
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard let position = attribute(element, kAXPositionAttribute),
+              let extent = attribute(element, kAXSizeAttribute),
+              AXValueGetValue(position as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(extent as! AXValue, .cgSize, &size) else { return nil }
+        // swiftlint:enable force_cast
+        return CGRect(origin: origin, size: size)
+    }
+
     private static func focusedElement() -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
         guard let value = attribute(system, kAXFocusedUIElementAttribute),

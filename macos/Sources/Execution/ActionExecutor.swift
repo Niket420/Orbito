@@ -29,6 +29,8 @@ final class ActionExecutor {
         case .searchWeb(let query, let app): outcome = await open(Self.searchURL(for: query), in: app)
         case .typeText(let text): outcome = await typeText(text)
         case .pressKey(let key, let modifiers): outcome = await pressKey(key, modifiers: modifiers)
+        case .closeApplication(let name): outcome = await closeApplication(name)
+        case .scroll(let direction, let lines): outcome = await scroll(direction, lines: lines)
         }
         Log.execution.info("Result: success=\(outcome.success)")
         return outcome
@@ -112,6 +114,29 @@ final class ActionExecutor {
         return .ok("Pressed \((modifiers + [key]).joined(separator: "+")). \(observer.describeFront())")
     }
 
+    /// Quits normally (like ⌘Q from the menu), so the app can still ask to save changes.
+    private func closeApplication(_ name: String) async -> ExecutionOutcome {
+        guard let app = observer.runningApp(named: name) else {
+            return .ok("\(name) wasn't open.")
+        }
+        guard app != NSRunningApplication.current else {
+            return .failure("I can't close myself. Use ⌘Q in Orbito.", retryable: false)
+        }
+        app.terminate()
+        if await observer.waitUntil(timeout: .seconds(4), { app.isTerminated }) {
+            return .ok("Closed \(name). \(observer.describeFront())")
+        }
+        return .ok("Asked \(name) to quit; it may be waiting for you to save changes.")
+    }
+
+    private func scroll(_ direction: String, lines: Int) async -> ExecutionOutcome {
+        if let problem = await prepareForInput() { return problem }
+        InputController.scroll(direction: direction, lines: lines,
+                               in: AccessibilityController.frontWindowFrame())
+        try? await Task.sleep(for: .milliseconds(200))
+        return .ok("Scrolled \(direction). \(observer.describeFront())")
+    }
+
     /// Ensures Accessibility permission and that input goes to the user's app, not Orbito.
     private func prepareForInput() async -> ExecutionOutcome? {
         guard AccessibilityController.isTrusted else {
@@ -142,6 +167,8 @@ private extension MacAction {
         case .searchWeb: "search_web"
         case .typeText: "type_text"
         case .pressKey: "press_key"
+        case .closeApplication: "close_application"
+        case .scroll: "scroll"
         }
     }
 }

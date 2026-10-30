@@ -50,7 +50,8 @@ struct NotchTests {
     @Test func onlyButtonPhasesTakeClicks() {
         #expect(NotchPhase.confirming("x").isInteractive)
         #expect(NotchPhase.approval(action(.awaitingApproval)).isInteractive)
-        #expect(!NotchPhase.listening.isInteractive)
+        #expect(NotchPhase.listening.isInteractive)  // the agent mode switch
+        #expect(!NotchPhase.working("x").isInteractive)
         #expect(!NotchPhase.done("x").isInteractive)
     }
 
@@ -69,7 +70,7 @@ struct NotchTests {
         #expect(hidden.width == 185 + NotchLayout.flare * 2)       // exactly covers the notch
         // Content starts below the camera notch so the hardware never hides it.
         #expect(NotchLayout.contentTop(notch) == 32)
-        #expect(listening.height == 32 + NotchLayout.rowHeight && listening.width > hidden.width)
+        #expect(listening.height > 32 + NotchLayout.rowHeight && listening.width > hidden.width)
         #expect(approval.height > listening.height)
         #expect(approval.width <= NotchWindowController.canvas.width)
         #expect(approval.height <= NotchWindowController.canvas.height)
@@ -111,5 +112,29 @@ struct ShortcutTests {
 
     @Test func capsLockIsIgnored() {
         #expect(taps([(0, [.maskControl, .maskAlternate, .maskAlphaShift]), (0.1, .maskAlphaShift)]) == 1)
+    }
+}
+
+@Suite("Agent actions")
+struct AgentActionTests {
+    private func dto(_ type: String, _ parameters: [String: JSONValue]) -> ActionDTO {
+        ActionDTO(actionId: "a1", type: type, parameters: parameters, description: "", requiresApproval: false,
+                  status: .ready, attempt: 1, observation: nil, error: nil)
+    }
+
+    @Test func closeAndScrollValidate() throws {
+        #expect(try MacAction(dto("close_application", ["application_name": .string("Calculator")]))
+                == .closeApplication(name: "Calculator"))
+        #expect(try MacAction(dto("scroll", ["direction": .string("down"), "amount": .number(10)]))
+                == .scroll(direction: "down", lines: 10))
+        #expect(try MacAction(dto("scroll", ["direction": .string("up")])) == .scroll(direction: "up", lines: 5))
+        #expect(!(try MacAction(dto("close_application", ["application_name": .string("Notes")]))).requiresApproval)
+    }
+
+    @Test func badScrollIsRejected() {
+        #expect(throws: ActionValidationError.self) { try MacAction(dto("scroll", ["direction": .string("sideways")])) }
+        #expect(throws: ActionValidationError.self) {
+            try MacAction(dto("scroll", ["direction": .string("down"), "amount": .number(999)]))
+        }
     }
 }

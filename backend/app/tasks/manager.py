@@ -21,6 +21,8 @@ from app.tasks.state import ActionStatus, Task, TaskAction, TaskStatus
 
 log = logging.getLogger(__name__)
 
+IGNORED_MESSAGE = "That didn't sound like a request, so I ignored it."
+
 
 class TaskError(Exception):
     """A request that conflicts with the task's current state."""
@@ -64,11 +66,11 @@ class TaskManager:
 
     # ----- commands ----------------------------------------------------------
 
-    async def create(self, instruction: str) -> Task:
+    async def create(self, instruction: str, session_id: str | None = None) -> Task:
         async with self._lock:
             if self.active_task():
                 raise TaskError("Another task is still running. Cancel it first.", code="task_active")
-            task = Task(instruction=instruction, planner=self._planner.provider_name)
+            task = Task(instruction=instruction, planner=self._planner.provider_name, session_id=session_id)
             self._save(task)
         self._planning[task.task_id] = asyncio.create_task(self._plan(task.task_id))
         log.info("task_created", extra={"task_id": task.task_id, "chars": len(instruction)})
@@ -151,7 +153,7 @@ class TaskManager:
             self._save(task)
 
         try:
-            plan = await self._planner.plan(task.instruction)
+            plan = await self._planner.plan(task.instruction, self._history(task))
             failure = None
         except (LLMError, PlanValidationError) as exc:
             plan, failure = None, str(exc)
@@ -165,6 +167,11 @@ class TaskManager:
             self._planning.pop(task_id, None)
             task = self.get(task_id)
             if task.status.is_terminal:  # cancelled while planning
+                return
+            if plan is not None and plan.not_a_command:
+                task.status = TaskStatus.CANCELLED
+                task.message = IGNORED_MESSAGE
+                self._save(task)
                 return
             if plan is not None and not plan.actions:
                 failure = plan.unsupported_reason or "I couldn't find a supported way to do that."
@@ -187,6 +194,25 @@ class TaskManager:
                 ]
                 self._advance(task)
             self._save(task)
+
+    def _history(self, task: Task, turns: int = 5) -> str | None:
+        """Earlier finished tasks of the same session, oldest first."""
+        if not task.session_id:
+            return None
+        earlier = sorted(
+            (t for t in self._repo.all()
+             if t.session_id == task.session_id and t.task_id != task.task_id and t.status.is_terminal
+             and t.message != IGNORED_MESSAGE),
+            key=lambda t: t.created_at,
+        )[-turns:]
+        lines = []
+        for t in earlier:
+            done = "; ".join(a.description for a in t.actions if a.status.value == "succeeded")
+            outcome = {"completed": f"done ({done})" if done else "done",
+                       "failed": f"failed: {t.error or ''}".strip(),
+                       "cancelled": "cancelled"}[t.status.value]
+            lines.append(f'- User said "{t.instruction}" → {outcome}')
+        return "\n".join(lines) or None
 
     def _advance(self, task: Task) -> None:
         action = task.current_action

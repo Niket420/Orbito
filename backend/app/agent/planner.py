@@ -22,12 +22,15 @@ class Planner:
     def provider_name(self) -> str:
         return self.llm.name
 
-    async def plan(self, instruction: str) -> ValidatedPlan:
+    async def plan(self, instruction: str, history: str | None = None) -> ValidatedPlan:
         """Ask the LLM for a plan and validate it. Raises LLMError or PlanValidationError.
 
-        A rejected plan gets one retry, with the validator's error passed back so the
-        model can correct it. The retry is validated just as strictly.
+        `history` describes earlier turns of the same conversation, so references like
+        "close it" can be resolved. A rejected plan gets one retry, with the validator's
+        error passed back so the model can correct it. The retry is validated just as strictly.
         """
+        if history:
+            instruction = f"Earlier in this conversation:\n{history}\n\nCurrent instruction: {instruction}"
         raw = await asyncio.to_thread(self.llm.propose_plan, instruction)
         try:
             plan = validate_plan(raw)

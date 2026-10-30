@@ -61,6 +61,7 @@ async def voice_stream(ws: WebSocket) -> None:
     await ws.send_json({"type": "ready", "wake_available": stream.wake_available,
                         "wake_phrase": settings.wake_word_phrase})
     speech = ws.app.state.speech
+    verifier = ws.app.state.wake_verifier
     send_lock = asyncio.Lock()
     background: set[asyncio.Task] = set()
 
@@ -70,9 +71,9 @@ async def voice_stream(ws: WebSocket) -> None:
 
     async def verify(clip) -> None:
         ok = True
-        if not isinstance(speech, MockSpeechRecognizer):
+        if not isinstance(verifier, MockSpeechRecognizer):
             try:
-                heard = await asyncio.to_thread(speech.transcribe, to_wav(clip))
+                heard = await asyncio.to_thread(verifier.transcribe, to_wav(clip))
                 ok = matches_phrase(heard.text, settings.wake_word_phrase)
             except SpeechError:
                 ok = False

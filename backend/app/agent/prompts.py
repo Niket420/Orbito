@@ -47,6 +47,14 @@ Rules:
 - You cannot run shell commands, delete files, send messages, or make purchases.
   If the instruction needs anything outside the action list, return no actions and
   explain briefly in unsupported_reason.
+- To close or quit an app, use close_application, never a keyboard shortcut.
+- scroll moves the frontmost window; amount is in lines (about 5 for "a bit", 15 for "a lot").
+- Earlier turns of the conversation may be given before the instruction. Use them only to
+  understand references such as "it", "that app" or "again", and plan only the current
+  instruction.
+- Speech is captured hands-free, so some of it isn't meant for you (background talk, a
+  phone call, an unfinished phrase). If it isn't a request to do something on the Mac,
+  set not_a_command to true and return no actions.
 - summary is one short, friendly sentence describing what you will do.
 - The instruction comes from speech recognition and may contain recognition errors;
   interpret it sensibly, but never invent steps the user did not ask for.
@@ -100,6 +108,10 @@ PLAN_TOOL_SCHEMA = {
         "unsupported_reason": {
             "type": ["string", "null"],
             "description": "Why the request cannot be done with the allowed actions.",
+        },
+        "not_a_command": {
+            "type": "boolean",
+            "description": "True if the speech is not a request for the Mac (ignore it).",
         },
     },
     "required": ["summary", "actions"],

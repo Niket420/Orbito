@@ -71,6 +71,8 @@ enum MacAction: Equatable {
     case searchWeb(query: String, app: String?)
     case typeText(String)
     case pressKey(key: String, modifiers: [String])
+    case closeApplication(name: String)
+    case scroll(direction: String, lines: Int)
 
     static let allowedKeys: Set<String> = Set(
         ["return", "tab", "escape", "space", "delete", "up", "down", "left", "right"]
@@ -114,6 +116,17 @@ enum MacAction: Equatable {
                 throw ActionValidationError(message: "That keyboard shortcut is blocked for safety.")
             }
             self = .pressKey(key: key, modifiers: modifiers)
+        case "close_application":
+            try p.only(["application_name"])
+            self = .closeApplication(name: try p.appName("application_name")!)
+        case "scroll":
+            try p.only(["direction", "amount"])
+            let direction = try p.string("direction", maxLength: 5)!
+            guard ["up", "down", "left", "right"].contains(direction) else {
+                throw ActionValidationError(message: "Scroll direction “\(direction)” isn't allowed.")
+            }
+            let lines = try p.int("amount", in: 1...30) ?? 5
+            self = .scroll(direction: direction, lines: lines)
         default:
             throw ActionValidationError(message: "Unsupported action “\(dto.type)”.")
         }
@@ -123,7 +136,7 @@ enum MacAction: Equatable {
     var requiresApproval: Bool {
         switch self {
         case .typeText, .pressKey: true
-        case .openApplication, .openURL, .searchWeb: false
+        case .openApplication, .openURL, .searchWeb, .closeApplication, .scroll: false
         }
     }
 }
@@ -161,6 +174,14 @@ private struct Params {
             throw ActionValidationError(message: "That app name contains unsupported characters.")
         }
         return name
+    }
+
+    func int(_ key: String, in range: ClosedRange<Int>) throws -> Int? {
+        switch values[key] {
+        case nil, .null?: return nil
+        case .number(let n)? where n == n.rounded() && range.contains(Int(n)): return Int(n)
+        default: throw ActionValidationError(message: "“\(key)” must be a whole number from \(range.lowerBound) to \(range.upperBound).")
+        }
     }
 
     func stringArray(_ key: String) throws -> [String] {

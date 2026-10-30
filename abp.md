@@ -264,9 +264,11 @@ LLM provider
 
 Speech-to-text
 
-* Cactus Whistle is kept because it is about 17 MB and runs on the Mac.
-* Larger models are more accurate, but use around 1 GB of RAM, which is too heavy for an assistant that is always running.
-* Accuracy problem (for example, "Chrome" heard as "Crown"): planned fix is Whistle keyword biasing with installed app names, plus sending the list of installed apps to the planner.
+* Whistle (about 17 MB, on-device) was too inaccurate in real use: accents and app names ("Chrome" heard as "Crown"). A tiny model can't be fixed by code around it.
+* Commands now go to Whisper large-v3-turbo on Groq: the best accuracy, about 0.3 s, and no RAM cost. The command text already goes to Groq for planning, so sending the audio is a small extra privacy step for a big accuracy gain.
+* Installed app names are sent as a vocabulary hint with each request.
+* Whistle stays as the offline fallback and does the wake-word double-check, so those frequent clips never leave the Mac.
+* Not chosen: on-device models around 1 GB (too heavy for an always-running app); Apple's on-device recognizer (good, but weaker on accents; its much better SpeechAnalyzer needs macOS 26).
 
 Notch UI
 
@@ -279,6 +281,17 @@ Keyboard shortcut
 * Modifier-only shortcuts can't be registered as macOS hot keys. Orbito samples the global modifier state about 30 times a second instead, which needs no permission. A tap counts only when exactly those two keys are pressed and released within 0.8 s with no other key in between, so shortcuts like ⌃⌥⌘T or ⌃→ don't trigger it.
 * Carbon hot keys (the first version) were dropped. Since macOS 15, ⌥-only shortcuts such as ⌥ Space register without an error but never fire, and a key recorder can't capture modifier-only combinations.
 * "Launch at login" is offered because an app cannot listen for a shortcut while it isn't running.
+
+Agent mode (continuous conversation)
+
+* A switch in the notch. When on, the voice-activity detector splits speech into requests and each one is sent, with no wake word.
+* Memory: tasks carry a session id, and the planner sees the last 5 turns of the session, so "now close it" resolves to the app opened before.
+* Always listening means hearing things that aren't requests. The planner can answer "not a command", and Orbito drops filler words and Whisper's silence hallucinations ("thank you").
+* While a task runs, only "stop" is acted on.
+* Short typing is approved automatically in agent mode, because clicking Allow breaks the flow. Key presses and long text still ask, and the action allowlist still applies.
+* It turns off after 5 quiet minutes, and the notch shows when it's on.
+* close_application quits normally (apps can still ask to save); force quit and ⌘Q stay blocked. scroll moves the pointer into the front window first, because macOS sends scroll events to whatever is under the pointer.
+* Next: a plan → act → observe loop, so the planner sees the screen after each step instead of planning blind.
 
 Wake word: built with "Hey Jarvis" as a stand-in until the custom "Hey Orbito" model is trained
 
@@ -332,6 +345,46 @@ Why Silero VAD:
 
 Audio privacy:
 
-* Audio is kept in memory and sent only to the local backend on the same Mac.
+* Audio is kept in memory and streamed only to the local backend on the same Mac.
+* Command audio is then sent to Groq for transcription (see section 15). Wake-word checks stay on the Mac. Set ORBITO_SPEECH_PROVIDER=whistle to keep all audio local.
 * Whistle reads a temporary file that is deleted automatically straight after transcription. Only the text is kept.
 * While Orbito waits for the wake word, audio is checked in short pieces and discarded.
+
+15. Speech-to-Text: from Cactus Whistle to Groq Whisper
+
+Step 1: started with Cactus Whistle (on-device)
+
+* Chosen first because it is tiny (about 17 MB), free, private (audio never leaves the Mac) and fast.
+* Verified on synthetic test clips, and it worked.
+
+Step 2: real use showed the problem
+
+* With a real voice it misheard commands, especially with accents and app names ("Chrome" heard as "Crown").
+* Cause: Whistle is a very small model. Code around it can't make it more accurate.
+
+Step 3: options considered
+
+Option	Why not (or why)
+Larger on-device models (WhisperKit, Parakeet)	Accurate, but around 0.5–1 GB of RAM, which is too heavy for an always-running assistant
+Apple on-device recognizer	Zero size and private, but weaker on accents; the much better SpeechAnalyzer needs macOS 26
+Cloud speech API	Best accuracy with no RAM cost, but the audio leaves the Mac
+
+* Decision: use a cloud API. The command text already goes to the cloud LLM for planning, so sending the audio is a small extra privacy step for a big accuracy gain.
+
+Step 4: why Groq
+
+* The Groq API key was already in use for the planner, so there was no new account or setup.
+* Whisper large-v3-turbo on Groq is accurate and very fast. Tested: an Indian-English clip was transcribed perfectly in 0.34 s.
+* It is among the cheapest cloud options.
+* Installed app names are sent as a vocabulary hint, which fixes app-name errors.
+
+Step 5: what Cactus Whistle still does
+
+* It is the offline fallback when Groq can't be reached.
+* It double-checks the wake word, which happens often, so those clips stay on the Mac.
+
+Known limits of Groq and the next step
+
+* Groq only transcribes whole clips (no live streaming), so Orbito waits for the user to stop talking before uploading.
+* Whisper can invent words during silence ("thank you"). Agent mode filters these.
+* For a more instant agent mode, the next option is a streaming service: Deepgram Nova-3 or AssemblyAI Universal-Streaming. They return text while the user speaks and detect the end of a sentence themselves, but they cost more and need a new account. Speech is a separate, replaceable module, so this is an easy swap later.

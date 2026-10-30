@@ -46,7 +46,12 @@ class Settings(BaseSettings):
         default=None, validation_alias=AliasChoices("AWS_BEARER_TOKEN_BEDROCK")
     )
 
-    speech_provider: Literal["auto", "whistle", "mock"] = "auto"
+    # auto: Groq Whisper when GROQ_API_KEY is set (Whistle as the offline fallback),
+    # otherwise Whistle on the Mac.
+    speech_provider: Literal["auto", "groq", "whistle", "mock"] = "auto"
+    groq_whisper_model: str = "whisper-large-v3-turbo"
+    # Language spoken to Orbito (ISO 639-1); empty lets Whisper detect it.
+    speech_language: str | None = "en"
 
     # Wake word (openWakeWord): a built-in model name or a path to a custom .onnx file.
     wake_word_model: str = "hey_jarvis"
@@ -65,7 +70,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "bedrock_model_id", "api_token", "aws_region", "bedrock_api_key",
-        "groq_api_key", "groq_model_id", mode="before",
+        "groq_api_key", "groq_model_id", "speech_language", mode="before",
     )
     @classmethod
     def _blank_is_none(cls, value: str | None) -> str | None:

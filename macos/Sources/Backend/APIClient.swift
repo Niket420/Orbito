@@ -45,8 +45,10 @@ final class APIClient: Sendable {
         try await send("GET", "/health", timeout: 2)
     }
 
-    func createTask(_ instruction: String) async throws -> TaskCreatedDTO {
-        try await send("POST", "/tasks", json: ["instruction": instruction])
+    func createTask(_ instruction: String, sessionID: String? = nil) async throws -> TaskCreatedDTO {
+        var body: [String: Any] = ["instruction": instruction]
+        if let sessionID { body["session_id"] = sessionID }
+        return try await send("POST", "/tasks", json: body)
     }
 
     func task(_ id: String) async throws -> TaskDTO {

@@ -53,7 +53,10 @@ struct SettingsView: View {
                 if let health = assistant.backend.health {
                     LabeledContent("Planner", value: providerLabel(health.llmProvider,
                                                                    real: health.llmProvider == "groq" ? "Groq" : "AWS Bedrock"))
-                    LabeledContent("Speech", value: providerLabel(health.speechProvider, real: "Cactus Whistle (on-device)"))
+                    LabeledContent("Speech", value: providerLabel(health.speechProvider,
+                                                                  real: health.speechProvider == "groq-whisper"
+                                                                      ? "Groq Whisper (Whistle when offline)"
+                                                                      : "Cactus Whistle (on-device)"))
                 }
                 LabeledContent("Address", value: assistant.backend.client.baseURL.absoluteString)
                 TextField("Port (applies after relaunch)", value: $port, format: .number.grouping(.never))

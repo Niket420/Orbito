@@ -16,7 +16,7 @@ Manager = Annotated[TaskManager, Depends(get_task_manager)]
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=TaskCreatedResponse)
 async def create_task(body: CreateTaskRequest, manager: Manager) -> TaskCreatedResponse:
-    task = await manager.create(body.instruction)
+    task = await manager.create(body.instruction, session_id=body.session_id)
     return TaskCreatedResponse(task_id=task.task_id, status=task.status.value, message=task.message)
 
 

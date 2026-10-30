@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
+from typing import Callable, Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -22,6 +22,8 @@ class ActionType(str, Enum):
     SEARCH_WEB = "search_web"
     TYPE_TEXT = "type_text"
     PRESS_KEY = "press_key"
+    CLOSE_APPLICATION = "close_application"
+    SCROLL = "scroll"
 
 
 class Risk(str, Enum):
@@ -73,6 +75,11 @@ class SearchWebParams(_Params):
 class TypeTextParams(_Params):
     model_config = ConfigDict(extra="forbid")  # keep whitespace the user asked for
     text: str = Field(min_length=1, max_length=500)
+
+
+class ScrollParams(_Params):
+    direction: Literal["up", "down", "left", "right"]
+    amount: int = Field(default=5, ge=1, le=30, description="How far to scroll, in lines.")
 
 
 ALLOWED_KEYS = frozenset(
@@ -178,5 +185,20 @@ ACTION_SPECS: dict[ActionType, ActionSpec] = {
         retry_safe=False,
         summary="Press a key, optionally with modifiers (e.g. command+t).",
         describe=_describe_key,
+    ),
+    # Quits normally, so apps still ask to save unsaved work. Force quit stays impossible.
+    ActionType.CLOSE_APPLICATION: ActionSpec(
+        OpenApplicationParams,
+        Risk.LOW,
+        retry_safe=True,
+        summary="Quit an open application normally (it can still ask to save changes).",
+        describe=lambda p: f"Close {p.application_name}",
+    ),
+    ActionType.SCROLL: ActionSpec(
+        ScrollParams,
+        Risk.LOW,
+        retry_safe=False,
+        summary="Scroll the frontmost window up, down, left or right.",
+        describe=lambda p: f"Scroll {p.direction}",
     ),
 }
