@@ -278,12 +278,14 @@ struct NotchView: View {
         case .approval:
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
+                    let voice = assistant.isListeningForApproval
                     Button { assistant.respondToApproval(false) } label: {
-                        Text("Deny").frame(maxWidth: .infinity, minHeight: 26)
+                        Text(voice ? "Deny · say “no”" : "Deny").frame(maxWidth: .infinity, minHeight: 26)
                             .background(Capsule().fill(.white.opacity(0.14)))
                     }
                     Button { assistant.respondToApproval(true) } label: {
-                        Text("Allow").fontWeight(.semibold).frame(maxWidth: .infinity, minHeight: 26)
+                        Text(voice ? "Allow · say “yes”" : "Allow").fontWeight(.semibold)
+                            .frame(maxWidth: .infinity, minHeight: 26)
                             .foregroundStyle(ThemeStore.shared.theme == .mono ? .black : .white)
                             .background(Capsule().fill(accent))
                     }

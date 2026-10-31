@@ -120,6 +120,24 @@ struct ShortcutTests {
     }
 }
 
+@Suite("Voice approval")
+struct VoiceApprovalTests {
+    @Test func yesAndNo() {
+        for text in ["Yes.", "yes please", "Allow", "Go ahead", "Do it!", "Yep, approve it", "sure"] {
+            #expect(AssistantController.approvalAnswer(text) == true, "\(text)")
+        }
+        for text in ["No.", "nope", "Deny", "Don't do it", "don’t", "Cancel that", "no, stop"] {
+            #expect(AssistantController.approvalAnswer(text) == false, "\(text)")
+        }
+    }
+
+    @Test func unclearOrSilenceHallucinationsDontCount() {
+        for text in ["", "okay", "Yeah", "thank you", "open Safari", "yesterday", "know", "nobody"] {
+            #expect(AssistantController.approvalAnswer(text) == nil, "\(text)")
+        }
+    }
+}
+
 @Suite("Agent actions")
 struct AgentActionTests {
     private func dto(_ type: String, _ parameters: [String: JSONValue]) -> ActionDTO {

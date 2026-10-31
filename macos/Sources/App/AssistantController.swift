@@ -88,6 +88,13 @@ final class AssistantController {
     private var pollTask: Task<Void, Never>?
     private var executedKeys = Set<String>()
     private var approvedActionIDs = Set<String>()
+    /// Approvals already answered (the backend may not have caught up yet).
+    private var answeredApprovalIDs = Set<String>()
+
+    /// The approval waiting for an answer, if any.
+    private var pendingApproval: ActionDTO? {
+        task?.awaitingApproval.flatMap { answeredApprovalIDs.contains($0.actionId) ? nil : $0 }
+    }
 
     // MARK: - Derived state
 
@@ -345,6 +352,11 @@ final class AssistantController {
         case .transcript(let text, let provider):
             isTranscribing = false
             transcriptionProvider = provider
+            if pendingApproval != nil {
+                if let approved = Self.approvalAnswer(text) { respondToApproval(approved) }
+                refreshHandsFreeMode()
+                return
+            }
             if isAgentMode {
                 handleAgentSpeech(text)
                 refreshHandsFreeMode()
@@ -394,7 +406,8 @@ final class AssistantController {
     /// busy, or turn the microphone off when the wake word isn't in use.
     private func refreshHandsFreeMode() {
         guard handsFree.isOpen, !isHandsFreeListening, !isTranscribing else { return }
-        if isAgentMode && !isRecording {
+        if (isAgentMode || pendingApproval != nil) && !isRecording {
+            // Agent mode, or waiting for a spoken "yes" / "no" to an approval.
             handsFree.setMode(.command)
             isHandsFreeListening = true
         } else if isTaskActive || isSubmitting || isRecording || pendingAutoSend != nil {
@@ -426,6 +439,7 @@ final class AssistantController {
         isSubmitting = true
         executedKeys.removeAll()
         approvedActionIDs.removeAll()
+        answeredApprovalIDs.removeAll()
         Task {
             defer { isSubmitting = false }
             do {
@@ -447,9 +461,32 @@ final class AssistantController {
         }
     }
 
+    /// Answering an approval out loud: true for yes, false for no, nil if unclear.
+    /// "okay" and "yeah" don't count; Whisper sometimes hears them in silence.
+    nonisolated static func approvalAnswer(_ text: String) -> Bool? {
+        let words = " " + text.lowercased().replacingOccurrences(of: "’", with: "'")
+            .filter { $0.isLetter || $0 == " " || $0 == "'" }
+            .split(separator: " ").joined(separator: " ") + " "
+        let no = ["no", "nope", "deny", "don't", "dont", "do not", "cancel", "stop", "reject", "never mind"]
+        let yes = ["yes", "yep", "allow", "approve", "approved", "go ahead", "do it", "confirm", "sure", "proceed"]
+        if no.contains(where: { words.contains(" \($0) ") }) { return false }
+        if yes.contains(where: { words.contains(" \($0) ") }) { return true }
+        return nil
+    }
+
+    /// Listening for a spoken answer to the approval in the notch.
+    var isListeningForApproval: Bool { handsFree.isOpen && pendingApproval != nil }
+
     func respondToApproval(_ approved: Bool) {
-        guard let task, let action = task.awaitingApproval else { return }
+        guard let task, let action = task.awaitingApproval,
+              answeredApprovalIDs.insert(action.actionId).inserted else { return }
         if approved { approvedActionIDs.insert(action.actionId) }
+        if !isAgentMode && isHandsFreeListening {
+            // Answered with a click while listening for "yes" / "no".
+            isHandsFreeListening = false
+            audioLevel = 0
+            handsFree.setMode(.idle)
+        }
         Task {
             do { self.task = try await backend.client.setApproval(task.taskId, approved: approved) }
             catch { localError = error.localizedDescription }
@@ -485,6 +522,7 @@ final class AssistantController {
                     failures = 0
                     self.task = latest
                     self.autoApproveIfAgent(latest)
+                    if self.pendingApproval != nil { self.refreshHandsFreeMode() }
                     if latest.status.isTerminal {
                         self.refreshHandsFreeMode()
                         return

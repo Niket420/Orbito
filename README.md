@@ -113,7 +113,8 @@ Tap **⌃ Control + ⌥ Option** together in any app and start talking (or hold 
 while you speak and let go to send). Orbito grows down out of the MacBook's camera notch with a live
 waveform. When you stop talking, it transcribes your command, shows it for about a
 second (click ✕ to cancel) and sends it. Tap the keys again to send straight away.
-Steps that need approval show **Allow** and **Deny** buttons in the notch.
+Steps that need approval show **Allow** and **Deny** in the notch. Just say "yes" or
+"no" ("go ahead", "allow", "deny", "cancel" also work), or click.
 
 After the first tap, Orbito also listens for **"Hey Jarvis"**, so the next command
 needs no keys at all. This is a stand-in until the custom "Hey Orbito" model is
