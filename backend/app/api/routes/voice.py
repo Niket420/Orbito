@@ -83,9 +83,14 @@ async def voice_stream(ws: WebSocket) -> None:
     async def transcribe(audio) -> None:
         try:
             result = await asyncio.to_thread(speech.transcribe, to_wav(audio))
+            log.info("voice_transcript", extra={"provider": result.provider, "chars": len(result.text)})
             await send({"type": "transcript", "text": result.text, "provider": result.provider})
         except SpeechError as exc:
+            log.warning("voice_transcribe_failed", extra={"error": str(exc)})
             await send({"type": "error", "message": str(exc)})
+        except Exception:  # noqa: BLE001 - never leave the app waiting for a transcript
+            log.exception("voice_transcribe_crashed")
+            await send({"type": "error", "message": "Speech recognition failed."})
 
     def spawn(coro) -> None:
         task = asyncio.create_task(coro)
@@ -120,6 +125,7 @@ async def voice_stream(ws: WebSocket) -> None:
                     await handle(stream.finish())
                 elif control.get("mode") in {m.value for m in (Mode.IDLE, Mode.WAKE, Mode.COMMAND)}:
                     stream.set_mode(Mode(control["mode"]))
+                    log.info("voice_mode", extra={"mode": control["mode"]})
     except WebSocketDisconnect:
         pass
     finally:

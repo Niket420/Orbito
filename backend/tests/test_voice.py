@@ -69,10 +69,17 @@ def test_silence_only_reports_no_speech():
 
 
 def test_finish_ends_the_command_immediately():
+    stream = VoiceStream(None, FakeScorer([0.9] * 5))
+    stream.set_mode(Mode.COMMAND)
+    stream.feed(chunks(5))
+    assert [e.kind for e in stream.finish()] == ["utterance"]
+
+
+def test_a_short_burst_is_not_a_command():
+    # 2 chunks (0.16 s) of "speech", like a cough or a click, then silence.
     stream = VoiceStream(None, FakeScorer([0.9, 0.9]))
     stream.set_mode(Mode.COMMAND)
-    stream.feed(chunks(2))
-    assert [e.kind for e in stream.finish()] == ["utterance"]
+    assert [e.kind for e in stream.feed(chunks(20))] == ["no_speech"]
 
 
 def test_without_a_wake_model_wake_mode_is_off():
@@ -102,7 +109,7 @@ def test_phrase_matching(heard, phrase, ok):
 @pytest.fixture
 def voice_client():
     def factory(model, threshold):
-        return VoiceStream(None, FakeScorer([0.9] * 3))
+        return VoiceStream(None, FakeScorer([0.9] * 5))
 
     app = create_app(settings=Settings(_env_file=None), task_manager=make_manager(),
                      speech_recognizer=MockSpeechRecognizer(), api_token=TOKEN, voice_factory=factory)

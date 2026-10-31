@@ -30,8 +30,8 @@ struct SettingsView: View {
                         Text(preset.label).tag(preset)
                     }
                 }
-                Text("Press both keys together and let go. Orbito listens and sends your command "
-                     + "when you stop talking. Tap again to send straight away.")
+                Text("Tap both keys: Orbito listens and sends your command when you stop talking. "
+                     + "Or hold them while you speak and let go to send.")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Then listen for “\(assistant.wakePhrase)”", isOn: $assistant.wakeWordEnabled)
                 Text("After the first tap, say “\(assistant.wakePhrase)” to give the next command "

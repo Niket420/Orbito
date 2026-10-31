@@ -9,6 +9,7 @@ If Groq can't be reached, `FallbackRecognizer` uses Whistle on the Mac instead.
 from __future__ import annotations
 
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,6 +23,9 @@ BASE_URL = "https://api.groq.com/openai/v1"
 _APP_DIRS = ["/Applications", "/System/Applications", "/System/Applications/Utilities",
              str(Path.home() / "Applications")]
 _PROMPT_LIMIT = 600  # Whisper reads only the last ~224 tokens of a prompt
+# Whisper invents text for noise and silence; such segments have low confidence.
+_MIN_AVG_LOGPROB = -1.0
+_MAX_NO_SPEECH_PROB = 0.6
 
 
 @lru_cache(maxsize=1)
@@ -36,7 +40,8 @@ def installed_app_names() -> tuple[str, ...]:
 
 
 def vocabulary_hint() -> str:
-    hint = "Commands for a Mac voice assistant, e.g. open Google Chrome, close Calculator. Apps: "
+    # Only names: example sentences in the prompt make Whisper invent or repeat them.
+    hint = "Apps: "
     for name in installed_app_names():
         if len(hint) + len(name) + 2 > _PROMPT_LIMIT:
             break
@@ -59,7 +64,7 @@ class GroqWhisperRecognizer:
 
     def transcribe(self, wav_bytes: bytes) -> Transcription:
         check_wav(wav_bytes)
-        data = {"model": self._model_id, "response_format": "json", "temperature": "0",
+        data = {"model": self._model_id, "response_format": "verbose_json", "temperature": "0",
                 "prompt": vocabulary_hint()}
         if self._language:
             data["language"] = self._language
@@ -77,10 +82,28 @@ class GroqWhisperRecognizer:
                 raise SpeechError("Groq's speech rate limit was reached. Try again in a moment.")
             raise SpeechError(f"Groq speech recognition failed (HTTP {response.status_code}).")
         try:
-            text = str(response.json().get("text", "")).strip()
-        except ValueError as exc:
+            text = confident_text(response.json())
+        except (ValueError, TypeError, KeyError) as exc:
             raise SpeechError("Groq returned an unreadable transcription.") from exc
         return Transcription(text=text, language=self._language, provider=self.name)
+
+
+def confident_text(result: dict) -> str:
+    """The transcript without low-confidence segments and with echoed repeats removed
+    ("Open calculator. Open calculator." becomes "Open calculator.")."""
+    segments = result.get("segments")
+    if segments is None:
+        parts = [str(result.get("text", ""))]
+    else:
+        parts = [str(s.get("text", "")) for s in segments
+                 if s.get("avg_logprob", 0) >= _MIN_AVG_LOGPROB
+                 and s.get("no_speech_prob", 0) <= _MAX_NO_SPEECH_PROB]
+    sentences = re.split(r"(?<=[.!?])\s+", " ".join(p.strip() for p in parts).strip())
+    kept: list[str] = []
+    for sentence in sentences:
+        if not kept or sentence.lower().strip(" .!?") != kept[-1].lower().strip(" .!?"):
+            kept.append(sentence)
+    return " ".join(kept).strip()
 
 
 class FallbackRecognizer:

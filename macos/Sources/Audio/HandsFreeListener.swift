@@ -17,6 +17,19 @@ final class HandsFreeListener {
         case noSpeech
         case error(String)
         case closed
+
+        /// Event kind without user content, safe for logs.
+        var logName: String {
+            switch self {
+            case .ready(let wake, _): "ready(wake: \(wake))"
+            case .wake: "wake"
+            case .transcribing: "transcribing"
+            case .transcript(let text, let provider): "transcript(\(text.count) chars, \(provider))"
+            case .noSpeech: "no_speech"
+            case .error: "error"
+            case .closed: "closed"
+            }
+        }
     }
 
     var onEvent: (Event) -> Void = { _ in }
@@ -46,6 +59,7 @@ final class HandsFreeListener {
     }
 
     func setMode(_ mode: Mode) {
+        Log.audio.notice("Hands-free mode \(mode.rawValue, privacy: .public)")
         sendControl(["mode": mode.rawValue])
     }
 

@@ -109,8 +109,8 @@ Set `ORBITO_SPEECH_PROVIDER=whistle` to keep all audio on your Mac, and
 
 ## The notch, the shortcut and the wake word
 
-Tap **⌃ Control + ⌥ Option** together in any app and start talking; there's no need
-to hold anything. Orbito grows down out of the MacBook's camera notch with a live
+Tap **⌃ Control + ⌥ Option** together in any app and start talking (or hold them
+while you speak and let go to send). Orbito grows down out of the MacBook's camera notch with a live
 waveform. When you stop talking, it transcribes your command, shows it for about a
 second (click ✕ to cancel) and sends it. Tap the keys again to send straight away.
 Steps that need approval show **Allow** and **Deny** buttons in the notch.

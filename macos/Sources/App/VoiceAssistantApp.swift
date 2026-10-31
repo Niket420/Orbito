@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.backend.start()
 
         // Hold-to-talk from anywhere, with status shown in the notch.
-        controller.shortcut.onTap = { [weak controller] in controller?.shortcutTapped() }
+        controller.shortcut.onEvent = { [weak controller] event in controller?.shortcutEvent(event) }
         controller.shortcut.start()
         notch = NotchWindowController(assistant: controller)
         notch?.show()

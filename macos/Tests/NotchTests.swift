@@ -84,34 +84,39 @@ struct NotchTests {
 @Suite("Voice shortcut")
 struct ShortcutTests {
     private let ctrlOpt: CGEventFlags = [.maskControl, .maskAlternate]
+    typealias Event = ModifierTapDetector.Event
 
-    /// Feeds (time, flags) samples; returns how many taps fired.
-    private func taps(_ samples: [(TimeInterval, CGEventFlags)], keyDownAt: TimeInterval = -100) -> Int {
+    /// Feeds (time, flags) samples; returns the events in order.
+    private func events(_ samples: [(TimeInterval, CGEventFlags)], keyDownAt: TimeInterval = -100) -> [Event] {
         var detector = ModifierTapDetector(target: ctrlOpt)
-        return samples.filter { time, flags in
-            detector.update(flags: flags, now: time, secondsSinceKeyDown: time - keyDownAt)
-        }.count
+        return samples.compactMap { time, flags in
+            // Before the key press, the last key press was long ago.
+            detector.update(flags: flags, now: time, secondsSinceKeyDown: time >= keyDownAt ? time - keyDownAt : 100)
+        }
     }
 
     @Test func quickTapFires() {
-        #expect(taps([(0, .maskControl), (0.05, ctrlOpt), (0.2, .maskAlternate), (0.25, [])]) == 1)
+        #expect(events([(0, .maskControl), (0.05, ctrlOpt), (0.2, .maskAlternate), (0.25, [])]) == [.tap])
     }
 
-    @Test func longHoldDoesNot() {
-        #expect(taps([(0, ctrlOpt), (2, ctrlOpt), (2.1, [])]) == 0)
+    @Test func holdingIsHoldToTalk() {
+        #expect(events([(0, ctrlOpt), (0.4, ctrlOpt), (3, ctrlOpt), (3.1, [])]) == [.holdStarted, .holdEnded])
     }
 
-    @Test func extraModifierOrKeySpoilsTheTap() {
+    @Test func extraModifierOrKeySpoilsIt() {
         // ⌃⌥⌘ chord
-        #expect(taps([(0, ctrlOpt), (0.1, [.maskControl, .maskAlternate, .maskCommand]), (0.2, [])]) == 0)
+        #expect(events([(0, ctrlOpt), (0.1, [.maskControl, .maskAlternate, .maskCommand]), (0.2, [])]).isEmpty)
         // ⌃⌥ + a key (e.g. ⌃⌥Space)
-        #expect(taps([(0, ctrlOpt), (0.3, [])], keyDownAt: 0.1) == 0)
+        #expect(events([(0, ctrlOpt), (0.2, [])], keyDownAt: 0.1).isEmpty)
         // only one of the two keys
-        #expect(taps([(0, .maskControl), (0.1, [])]) == 0)
+        #expect(events([(0, .maskControl), (0.1, [])]).isEmpty)
+        // a key pressed during a hold cancels it
+        #expect(events([(0, ctrlOpt), (0.4, ctrlOpt), (1, ctrlOpt), (1.2, [])], keyDownAt: 0.9)
+                == [.holdStarted, .holdCancelled])
     }
 
     @Test func capsLockIsIgnored() {
-        #expect(taps([(0, [.maskControl, .maskAlternate, .maskAlphaShift]), (0.1, .maskAlphaShift)]) == 1)
+        #expect(events([(0, [.maskControl, .maskAlternate, .maskAlphaShift]), (0.1, .maskAlphaShift)]) == [.tap])
     }
 }
 

@@ -7,7 +7,7 @@ import pytest
 
 from app.policy.validator import PlanValidationError, validate_plan
 from app.speech.base import SpeechError, Transcription
-from app.speech.groq_whisper import FallbackRecognizer, GroqWhisperRecognizer
+from app.speech.groq_whisper import FallbackRecognizer, GroqWhisperRecognizer, confident_text
 from tests.conftest import StaticLLM, make_manager, wav_bytes
 
 
@@ -88,6 +88,16 @@ def test_groq_whisper_sends_audio_and_app_hint():
     result = groq(handler).transcribe(wav_bytes())
     assert result.text == "Open Google Chrome." and result.provider == "groq-whisper"
     assert b"whisper-large-v3-turbo" in seen["body"] and b"Apps:" in seen["body"]
+
+
+def test_invented_and_repeated_text_is_dropped():
+    result = {"segments": [
+        {"text": " Open calculator.", "avg_logprob": -0.1, "no_speech_prob": 0.0},
+        {"text": " Open calculator.", "avg_logprob": -0.2, "no_speech_prob": 0.0},   # echo
+        {"text": " Ssutu, Pint Center.", "avg_logprob": -1.5, "no_speech_prob": 0.0},  # noise
+        {"text": " Thank you.", "avg_logprob": -0.3, "no_speech_prob": 0.9},  # silence
+    ]}
+    assert confident_text(result) == "Open calculator."
 
 
 def test_groq_errors_are_readable():

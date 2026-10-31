@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import Observation
 
-/// Two modifier keys pressed together and released (a "tap") start Orbito.
+/// Two modifier keys start Orbito: tap them, or hold them while speaking.
 enum ShortcutPreset: String, CaseIterable, Identifiable {
     case controlOption
     case fnControl
@@ -35,36 +35,52 @@ enum ShortcutPreset: String, CaseIterable, Identifiable {
     }
 }
 
-/// Recognizes a tap of exactly the preset's modifiers: pressed together, then all
-/// released within `maxHold`, with no other key or modifier used in between (so
-/// shortcuts like ⌃⌥⌘T or ⌃→ never trigger it).
+/// Recognizes exactly the preset's two modifiers, used alone (so shortcuts like ⌃⌥⌘T,
+/// ⌃⌥Space or ⌃→ never trigger it):
+/// - a quick tap (released within `holdDelay`) → `.tap`
+/// - holding them → `.holdStarted`, then `.holdEnded` on release (hold-to-talk), or
+///   `.holdCancelled` if another key or modifier joins in.
 struct ModifierTapDetector {
+    enum Event: Equatable {
+        case tap, holdStarted, holdEnded, holdCancelled
+    }
+
     static let relevant: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand, .maskSecondaryFn]
-    static let maxHold: TimeInterval = 0.8
+    static let holdDelay: TimeInterval = 0.35
 
     var target: CGEventFlags
     private var pressedAt: TimeInterval?
     private var spoiled = false
+    private var holding = false
 
     init(target: CGEventFlags) {
         self.target = target
     }
 
-    /// Feed the current modifier state; returns true when a tap completes.
-    mutating func update(flags rawFlags: CGEventFlags, now: TimeInterval, secondsSinceKeyDown: TimeInterval) -> Bool {
+    /// Feed the current modifier state; returns what happened, if anything.
+    mutating func update(flags rawFlags: CGEventFlags, now: TimeInterval, secondsSinceKeyDown: TimeInterval) -> Event? {
         let flags = rawFlags.intersection(Self.relevant)
+        if let pressedAt, !spoiled, secondsSinceKeyDown < now - pressedAt {
+            spoiled = true  // another key was pressed while the modifiers were down
+            if holding { holding = false; return .holdCancelled }
+        }
         if flags.isEmpty {
-            defer { pressedAt = nil; spoiled = false }
-            guard let pressedAt, !spoiled else { return false }
-            let held = now - pressedAt
-            return held <= Self.maxHold && secondsSinceKeyDown > held
+            defer { pressedAt = nil; spoiled = false; holding = false }
+            guard let pressedAt, !spoiled else { return nil }
+            if holding { return .holdEnded }
+            return now - pressedAt < Self.holdDelay ? .tap : nil
         }
         if flags == target {
             if pressedAt == nil { pressedAt = now }
-        } else if !target.isSuperset(of: flags) {
+            if let pressedAt, !spoiled, !holding, now - pressedAt >= Self.holdDelay {
+                holding = true
+                return .holdStarted
+            }
+        } else if !target.isSuperset(of: flags), !spoiled {
             spoiled = true  // another modifier joined in
+            if holding { holding = false; return .holdCancelled }
         }
-        return false
+        return nil
     }
 }
 
@@ -81,7 +97,7 @@ final class VoiceShortcut {
         }
     }
 
-    @ObservationIgnored var onTap: () -> Void = {}
+    @ObservationIgnored var onEvent: (ModifierTapDetector.Event) -> Void = { _ in }
     @ObservationIgnored private var detector: ModifierTapDetector
     @ObservationIgnored private var timer: Timer?
 
@@ -103,8 +119,9 @@ final class VoiceShortcut {
     private func poll() {
         let flags = CGEventSource.flagsState(.combinedSessionState)
         let sinceKey = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
-        if detector.update(flags: flags, now: ProcessInfo.processInfo.systemUptime, secondsSinceKeyDown: sinceKey) {
-            onTap()
+        if let event = detector.update(flags: flags, now: ProcessInfo.processInfo.systemUptime,
+                                       secondsSinceKeyDown: sinceKey) {
+            onEvent(event)
         }
     }
 }

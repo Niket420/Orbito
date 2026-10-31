@@ -38,6 +38,7 @@ END_SILENCE_SECONDS = 0.9    # pause that ends a command
 NO_SPEECH_SECONDS = 6.0      # give up if nothing is said after listening starts
 MAX_COMMAND_SECONDS = 20.0
 WAKE_CLIP_SECONDS = 2.0      # audio checked by Whistle after a detection
+MIN_SPEECH_SECONDS = 0.3     # shorter bursts (a cough, a click) aren't a command
 
 _FILLER_WORDS = {"hey", "hi", "ok", "okay"}
 
@@ -70,6 +71,7 @@ class VoiceStream:
         self._recent = np.zeros(0, dtype=np.int16)
         self._command: list[np.ndarray] = []
         self._heard_speech = False
+        self._speech = 0.0
         self._silence = 0.0
         self._elapsed = 0.0
         self.mode = Mode.IDLE
@@ -134,6 +136,7 @@ class VoiceStream:
         self._elapsed += CHUNK_SECONDS
         if self._vad.score(chunk) >= SPEECH_PROBABILITY:
             self._heard_speech = True
+            self._speech += CHUNK_SECONDS
             self._silence = 0.0
         elif self._heard_speech:
             self._silence += CHUNK_SECONDS
@@ -149,7 +152,10 @@ class VoiceStream:
 
     def _end_command(self) -> Event:
         audio = np.concatenate(self._command) if self._command else np.zeros(0, dtype=np.int16)
-        event = Event("utterance", audio) if self._heard_speech else Event("no_speech")
+        enough = self._speech >= MIN_SPEECH_SECONDS
+        event = Event("utterance", audio) if enough else Event("no_speech")
+        log.info("voice_command_ended", extra={"seconds": round(self._elapsed, 1),
+                                               "speech_seconds": round(self._speech, 1)})
         self._enter(Mode.IDLE)
         return event
 
@@ -157,6 +163,7 @@ class VoiceStream:
         self.mode = mode
         self._command = []
         self._heard_speech = False
+        self._speech = 0.0
         self._silence = 0.0
         self._elapsed = 0.0
         self._vad.reset()

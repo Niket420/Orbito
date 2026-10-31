@@ -31,8 +31,21 @@ case "${1:-app}" in
     app)
         require_venv
         cd "$ROOT/macos"
+        # A build suspended with Ctrl+Z keeps SwiftPM's lock, so new builds wait forever.
+        lock="${TMPDIR%/}/$(echo "$ROOT/macos/.build" | tr '/' '_').lock"
+        for pid in $(lsof -t "$lock" 2>/dev/null); do
+            if [[ "$(ps -o stat= -p "$pid")" == T* ]]; then
+                echo "Ending a suspended build (pid $pid) that was blocking this one."
+                kill -9 "$pid"
+            fi
+        done
+        # Restart: quit an Orbito that's already running from this checkout (it stops its backend).
+        if pkill -f "$ROOT/macos/.build/.*/Orbito$"; then
+            echo "Restarting Orbito…"
+            sleep 1
+        fi
         swift build
-        exec "$(swift build --show-bin-path)/Orbito"
+        exec "$ROOT/macos/.build/debug/Orbito"
         ;;
     backend)
         require_venv

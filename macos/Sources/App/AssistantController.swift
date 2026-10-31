@@ -194,6 +194,27 @@ final class AssistantController {
 
     // MARK: - Shortcut and wake word
 
+    func shortcutEvent(_ event: ModifierTapDetector.Event) {
+        Log.app.notice("Shortcut \(String(describing: event), privacy: .public)")
+        switch event {
+        case .tap:
+            shortcutTapped()
+        case .holdStarted:
+            // Hold-to-talk: start now, send on release. Agent mode is already listening.
+            if !isAgentMode && !isHandsFreeListening && !isRecording { shortcutTapped() }
+        case .holdEnded:
+            if !isAgentMode && isHandsFreeListening { handsFree.finish() }
+            else if !isAgentMode && isRecording { stopRecording(autoSend: autoSendEnabled) }
+        case .holdCancelled:
+            if !isAgentMode && isHandsFreeListening {
+                isHandsFreeListening = false
+                audioLevel = 0
+                handsFree.setMode(.idle)
+                refreshHandsFreeMode()
+            }
+        }
+    }
+
     /// Tap the shortcut: start listening; the command is sent when you stop talking.
     /// Tapping again while listening sends it straight away.
     func shortcutTapped() {
@@ -308,6 +329,7 @@ final class AssistantController {
     }
 
     private func handle(_ event: HandsFreeListener.Event) {
+        Log.app.notice("Hands-free event \(event.logName, privacy: .public)")
         switch event {
         case .ready(let wakeAvailable, let phrase):
             self.wakeAvailable = wakeAvailable
