@@ -15,12 +15,14 @@ import httpx
 
 from app.agent.prompts import PLAN_TOOL_NAME, PLAN_TOOL_SCHEMA, SYSTEM_PROMPT
 from app.llm.base import (
+    ANSWER_PROMPT,
     LLMAuthError,
     LLMError,
     LLMResponseError,
     LLMThrottledError,
     LLMTimeoutError,
     LLMUnavailableError,
+    answer_prompt,
     json_object_from_text,
 )
 
@@ -75,6 +77,27 @@ class GroqProvider:
                 break
             time.sleep(_retry_delay(response, attempt))
         return _parse(response)
+
+    def answer(self, question: str, context: str | None) -> str:
+        body = {
+            "model": self._model_id,
+            "messages": [
+                {"role": "system", "content": ANSWER_PROMPT},
+                {"role": "user", "content": answer_prompt(question, context)},
+            ],
+            "temperature": 0.2,
+            "max_completion_tokens": 400,
+        }
+        response = self._post(body)
+        if response.status_code != 200:
+            _parse(response)  # raises the matching LLMError
+        try:
+            text = response.json()["choices"][0]["message"]["content"] or ""
+        except (ValueError, KeyError, IndexError, TypeError):
+            raise LLMResponseError("Groq returned an unexpected response.") from None
+        if not text.strip():
+            raise LLMResponseError("The model didn't return an answer.")
+        return text.strip()
 
     def _post(self, body: dict[str, Any]) -> httpx.Response:
         try:

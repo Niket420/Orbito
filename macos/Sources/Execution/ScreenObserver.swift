@@ -5,6 +5,8 @@ import AppKit
 final class ScreenObserver {
     /// The most recent frontmost app other than Orbito itself.
     private(set) var lastExternalApp: NSRunningApplication?
+    /// The app that was in front before `lastExternalApp`, for "switch back".
+    private(set) var previousExternalApp: NSRunningApplication?
     private var token: NSObjectProtocol?
 
     init() {
@@ -14,7 +16,9 @@ final class ScreenObserver {
         ) { [weak self] note in
             let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             MainActor.assumeIsolated {
-                if let app, !Self.isSelf(app) { self?.lastExternalApp = app }
+                guard let self, let app, !Self.isSelf(app), app != self.lastExternalApp else { return }
+                self.previousExternalApp = self.lastExternalApp
+                self.lastExternalApp = app
             }
         }
     }

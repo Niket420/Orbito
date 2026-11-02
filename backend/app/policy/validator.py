@@ -74,7 +74,7 @@ def validate_action(raw: Any, index: int = 0) -> ValidatedAction:
     return ValidatedAction(
         type=action_type,
         parameters=params.model_dump(exclude_none=True),
-        risk=spec.risk,
+        risk=spec.risk_for(params),
         retry_safe=spec.retry_safe,
         description=spec.describe(params),
     )

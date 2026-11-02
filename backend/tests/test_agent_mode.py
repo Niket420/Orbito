@@ -64,13 +64,15 @@ async def test_session_history_reaches_the_planner():
     second = await manager.create("now close it", session_id="abcd1234")
     await wait_until_done(manager, second.task_id)
     await manager.cancel(second.task_id)
-    assert llm.prompts[0] == "open calculator"  # nothing earlier yet
+    assert llm.prompts[0].startswith("Local time now: ")
+    assert llm.prompts[0].endswith("\n\nCurrent instruction: open calculator")
+    assert "Earlier" not in llm.prompts[0]  # nothing earlier yet
     assert 'User said "open calculator" → done (Open Calculator)' in llm.prompts[1]
     assert llm.prompts[1].endswith("Current instruction: now close it")
 
     other = await manager.create("hello", session_id="ffff0000")
     await wait_until_done(manager, other.task_id)
-    assert llm.prompts[2] == "hello"  # other sessions don't leak in
+    assert "Earlier" not in llm.prompts[2]  # other sessions don't leak in
 
 
 def groq(handler):

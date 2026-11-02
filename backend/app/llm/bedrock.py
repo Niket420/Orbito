@@ -26,12 +26,14 @@ from botocore.exceptions import (
 
 from app.agent.prompts import PLAN_TOOL_NAME, PLAN_TOOL_SCHEMA, SYSTEM_PROMPT
 from app.llm.base import (
+    ANSWER_PROMPT,
     LLMAuthError,
     LLMError,
     LLMResponseError,
     LLMThrottledError,
     LLMTimeoutError,
     LLMUnavailableError,
+    answer_prompt,
     json_object_from_text,
 )
 
@@ -114,6 +116,22 @@ class BedrockProvider:
             request["toolConfig"] = dict(_TOOL_CONFIG)
             response = self._converse(request)
         return extract_plan(response)
+
+    def answer(self, question: str, context: str | None) -> str:
+        response = self._converse({
+            "modelId": self._model_id,
+            "system": [{"text": ANSWER_PROMPT}],
+            "messages": [{"role": "user", "content": [{"text": answer_prompt(question, context)}]}],
+            "inferenceConfig": {"maxTokens": 400, "temperature": 0.2},
+        })
+        try:
+            content = response["output"]["message"]["content"]
+        except (KeyError, TypeError):
+            raise LLMResponseError("Bedrock returned an unexpected response.") from None
+        text = "".join(b.get("text", "") for b in content if isinstance(b, dict)).strip()
+        if not text:
+            raise LLMResponseError("The model didn't return an answer.")
+        return text
 
     def _converse(self, request: dict[str, Any]) -> dict[str, Any]:
         try:

@@ -14,6 +14,7 @@ import logging
 
 from app.agent.planner import Planner
 from app.llm.base import LLMError
+from app.policy.permissions import ACTION_SPECS, ActionType
 from app.policy.validator import PlanValidationError
 from app.storage.repository import TaskRepository
 from app.tasks import recovery
@@ -22,6 +23,8 @@ from app.tasks.state import ActionStatus, Task, TaskAction, TaskStatus
 log = logging.getLogger(__name__)
 
 IGNORED_MESSAGE = "That didn't sound like a request, so I ignored it."
+# Text read from the Mac that is passed to the LLM to answer a question.
+MAX_CONTEXT_CHARS = 8000
 
 
 class TaskError(Exception):
@@ -130,7 +133,13 @@ class TaskManager:
                 raise TaskError("That action is not the one currently running.")
 
             action.observation = observation
-            if success:
+            if success and action.type == ActionType.ASK.value:
+                # The Mac sent what it read; the LLM turns it into an answer before moving on.
+                action.status = ActionStatus.SUCCEEDED
+                action.error = None
+                task.message = "Thinking about the answer…"
+                self._planning[task_id] = asyncio.create_task(self._answer(task_id, action.action_id))
+            elif success:
                 action.status = ActionStatus.SUCCEEDED
                 action.error = None
                 self._advance(task)
@@ -195,6 +204,40 @@ class TaskManager:
                 self._advance(task)
             self._save(task)
 
+    async def _answer(self, task_id: str, action_id: str) -> None:
+        task = self.get(task_id)
+        action = next(a for a in task.actions if a.action_id == action_id)
+        context = (action.observation or "")[:MAX_CONTEXT_CHARS] or None
+        try:
+            answer, failure = await self._planner.answer(action.parameters["question"], context), None
+        except LLMError as exc:
+            answer, failure = None, str(exc)
+        except asyncio.CancelledError:
+            return
+        except Exception:  # noqa: BLE001 - never leave a task stuck in RUNNING
+            log.exception("answer_crashed", extra={"task_id": task_id})
+            answer, failure = None, "Something went wrong while answering."
+
+        async with self._lock:
+            self._planning.pop(task_id, None)
+            task = self.get(task_id)
+            if task.status.is_terminal:
+                return
+            action = next(a for a in task.actions if a.action_id == action_id)
+            # Don't keep screen or clipboard text around once it's been used.
+            read = len(action.observation or "")
+            action.observation = f"Read {read} characters" if read else None
+            if failure:
+                action.status = ActionStatus.FAILED
+                action.error = failure
+                task.status = TaskStatus.FAILED
+                task.error = failure
+                task.message = "A step failed"
+            else:
+                task.result = answer
+                self._advance(task)
+            self._save(task)
+
     def _history(self, task: Task, turns: int = 5) -> str | None:
         """Earlier finished tasks of the same session, oldest first."""
         if not task.session_id:
@@ -219,7 +262,11 @@ class TaskManager:
         if action is None:
             task.status = TaskStatus.COMPLETED
             task.message = "All done!"
-            task.result = task.summary or " → ".join(a.description for a in task.actions)
+            # Information steps (battery, files found, an answer) are the result.
+            info = [a.observation for a in task.actions
+                    if a.observation and a.type != ActionType.ASK.value and ACTION_SPECS[ActionType(a.type)].answers]
+            task.result = (task.result or "\n".join(info) or task.summary
+                           or " → ".join(a.description for a in task.actions))
             return
         step = task.actions.index(action) + 1
         prefix = f"Step {step} of {len(task.actions)}"

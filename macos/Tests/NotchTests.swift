@@ -161,3 +161,64 @@ struct AgentActionTests {
         }
     }
 }
+
+@Suite("Full-control actions")
+struct FullControlActionTests {
+    private func action(_ type: String, _ parameters: [String: JSONValue] = [:]) throws -> MacAction {
+        try MacAction(ActionDTO(actionId: "a1", type: type, parameters: parameters, description: "",
+                                requiresApproval: false, status: .ready, attempt: 1, observation: nil, error: nil))
+    }
+
+    @Test func parsesTheNewActions() throws {
+        #expect(try action("switch_application") == .switchApplication(name: nil))
+        #expect(try action("window_control", ["operation": .string("left_half")]) == .windowControl("left_half"))
+        #expect(try action("app_command", ["command": .string("new_tab")]) == .appCommand("new_tab"))
+        #expect(try action("ask", ["question": .string("what's this?"), "source": .string("screen")])
+                == .ask(question: "what's this?", source: "screen"))
+        #expect(try action("take_screenshot") == .takeScreenshot(area: "full", destination: "file"))
+        #expect(try action("system_control", ["control": .string("set_volume"), "value": .number(40)])
+                == .systemControl("set_volume", value: 40))
+        #expect(try action("create_reminder", ["title": .string("tea"), "in_minutes": .number(10)])
+                == .createReminder(title: "tea", inMinutes: 10, due: nil))
+        #expect(try action("compose_email", ["to": .array([.string("a@b.com")])])
+                == .composeEmail(to: ["a@b.com"], subject: nil, body: nil))
+        #expect(try action("trash_selected_files") == .trashSelectedFiles)
+    }
+
+    @Test func riskyStepsNeedApproval() throws {
+        #expect(try action("click_element", ["target": .string("Delete account")]).requiresApproval)
+        #expect(!(try action("click_element", ["target": .string("Sign in")]).requiresApproval))
+        #expect(try action("system_control", ["control": .string("lock_screen")]).requiresApproval)
+        #expect(!(try action("system_control", ["control": .string("mute")]).requiresApproval))
+        #expect(try action("trash_selected_files").requiresApproval)
+        #expect(try action("force_quit_application", ["application_name": .string("Xcode")]).requiresApproval)
+        #expect(try action("create_event", ["title": .string("x"), "start": .string("2026-05-01T18:30")]).requiresApproval)
+    }
+
+    @Test func rejectsBadValues() {
+        let bad: [(String, [String: JSONValue])] = [
+            ("app_command", ["command": .string("quit")]),
+            ("window_control", ["operation": .string("explode")]),
+            ("open_location", ["location": .string("documents"), "subfolder": .string("../../etc")]),
+            ("create_folder", ["name": .string(".hidden")]),
+            ("create_reminder", ["title": .string("x"), "due": .string("tomorrow 6pm")]),
+            ("compose_email", ["to": .array([.string("not an email")])]),
+            ("system_control", ["control": .string("shutdown")]),
+            ("trash_selected_files", ["path": .string("/")]),
+        ]
+        for (type, parameters) in bad {
+            #expect(throws: ActionValidationError.self, "\(type)") { try action(type, parameters) }
+        }
+    }
+
+    @Test func helpers() {
+        #expect(Places.subfolder("../..", in: URL(fileURLWithPath: NSHomeDirectory())) == nil)
+        #expect(Places.mailtoURL(to: ["a@b.com"], subject: "Hi there", body: nil)?.absoluteString
+                == "mailto:a@b.com?subject=Hi%20there")
+        #expect(Places.mediaSearchURL("lo fi", app: "youtube").absoluteString
+                == "https://www.youtube.com/results?search_query=lo%20fi")
+        #expect(MacAction.appCommands.count == 21)
+        #expect(Places.settingsPanes.count == MacAction.settingsPanes.count)
+        #expect(LocalTime.date("2026-05-01T18:30") != nil)
+    }
+}

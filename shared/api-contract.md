@@ -191,6 +191,36 @@ unknown parameters are rejected. The macOS app checks them again before executin
 | `press_key` | `key` (return, tab, escape, space, delete, arrows, a–z, 0–9), `modifiers?` (command/shift/option/control) | **needs approval** | no |
 | `close_application` | `application_name` (quits normally; the app can still ask to save) | low | yes |
 | `scroll` | `direction` (up/down/left/right), `amount?` (lines, 1–30, default 5) | low | no |
+| `switch_application` | `application_name?` (absent = previous app) | low | yes |
+| `hide_application` | `application_name`, `others?` (bool: hide every other app) | low | yes |
+| `force_quit_application` | `application_name` | **needs approval** | yes |
+| `window_control` | `operation` (minimize, maximize, fullscreen, left/right/top/bottom_half, center, close, next_display) | low | no |
+| `app_command` | `command` (copy, cut, paste, select_all, undo, redo, save, find, new/close/reopen/next/previous_tab, back, forward, reload, new_window, address_bar, zoom_in/out, actual_size) | low | no |
+| `click_element` | `target` (visible label, ≤80) | low; **needs approval** for labels like delete, buy, send, submit | no |
+| `ask` | `question` (≤300), `source?` (screen, selection, clipboard, none) | low | yes |
+| `take_screenshot` | `area?` (full, window, selection), `destination?` (file, clipboard) | low | no |
+| `open_location` | `location` (home, desktop, documents, downloads, applications, pictures, music, movies, trash, icloud_drive), `subfolder?` | low | yes |
+| `find_file` | `query` (≤120), `open?` (bool) | low | yes |
+| `create_folder` | `name` (plain name), `location?` (default desktop) | low | yes |
+| `trash_selected_files` | none (the Finder selection) | **needs approval** | no |
+| `system_control` | `control` (volume_up/down, set_volume, mute, unmute, brightness_up/down, dark_mode_on/off, wifi_on/off, lock_screen, sleep), `value?` (0–100) | low; **needs approval** for wifi_off, lock_screen, sleep | no |
+| `open_settings` | `pane` (general, wifi, bluetooth, network, sound, displays, battery, notifications, focus, appearance, wallpaper, desktop_dock, keyboard, trackpad, privacy, accessibility, users, storage, software_update) | low | yes |
+| `get_info` | `item` (battery, storage, wifi, time, date, running_apps, clipboard, front_app) | low | yes |
+| `media_control` | `command` (play_pause, next, previous) | low | no |
+| `play_media` | `query`, `app?` (spotify, apple_music, youtube) | low | no |
+| `create_note` | `text` (≤2000) | low | no |
+| `create_reminder` | `title`, `in_minutes?` (1–10080) or `due?` (local `YYYY-MM-DDTHH:MM`) | low | no |
+| `list_events` | `day?` (today, tomorrow) | low | yes |
+| `create_event` | `title`, `start` (local `YYYY-MM-DDTHH:MM`), `duration_minutes?` (5–1440, default 60) | **needs approval** | no |
+| `compose_email` | `to?` (≤5 addresses), `subject?`, `body?` (opens a draft, never sends) | low | no |
+| `set_clipboard` | `text` (≤2000) | low | yes |
 
 Shortcuts that quit apps, log out, lock the screen, force-quit or delete files
-(for example ⌘Q, ⌥⌘⎋, ⌘⌫) are always blocked. A plan can have at most 8 actions.
+(for example ⌘Q, ⌥⌘⎋, ⌘⌫) are always blocked as `press_key`; the dedicated actions above
+are used instead. A plan can have at most 8 actions.
+
+**Answers.** For `get_info`, `find_file` and `list_events`, the app's observation is
+the task's `result`. For `ask`, the app reports the text it read as the observation
+(empty for `source: none`); the backend then asks the LLM, sets `result` to the answer,
+replaces the observation with "Read N characters" and only then completes the task.
+While it answers, the task stays `running` with no `next_action`.

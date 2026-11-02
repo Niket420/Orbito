@@ -73,6 +73,56 @@ enum MacAction: Equatable {
     case pressKey(key: String, modifiers: [String])
     case closeApplication(name: String)
     case scroll(direction: String, lines: Int)
+    case switchApplication(name: String?)
+    case hideApplication(name: String, others: Bool)
+    case forceQuitApplication(name: String)
+    case windowControl(String)
+    case appCommand(String)
+    case clickElement(String)
+    case ask(question: String, source: String)
+    case takeScreenshot(area: String, destination: String)
+    case openLocation(String, subfolder: String?)
+    case findFile(query: String, open: Bool)
+    case createFolder(name: String, location: String)
+    case trashSelectedFiles
+    case systemControl(String, value: Int?)
+    case openSettings(String)
+    case getInfo(String)
+    case mediaControl(String)
+    case playMedia(query: String, app: String)
+    case createNote(String)
+    case createReminder(title: String, inMinutes: Int?, due: String?)
+    case listEvents(day: String)
+    case createEvent(title: String, start: String, minutes: Int)
+    case composeEmail(to: [String], subject: String?, body: String?)
+    case setClipboard(String)
+
+    static let windowOperations = ["minimize", "maximize", "fullscreen", "left_half", "right_half", "top_half",
+                                   "bottom_half", "center", "close", "next_display"]
+    /// Named commands and the shortcut each one sends.
+    static let appCommands: [String: (key: String, modifiers: [String])] = [
+        "copy": ("c", ["command"]), "cut": ("x", ["command"]), "paste": ("v", ["command"]),
+        "select_all": ("a", ["command"]), "undo": ("z", ["command"]), "redo": ("z", ["command", "shift"]),
+        "save": ("s", ["command"]), "find": ("f", ["command"]), "new_tab": ("t", ["command"]),
+        "close_tab": ("w", ["command"]), "reopen_tab": ("t", ["command", "shift"]),
+        "next_tab": ("tab", ["control"]), "previous_tab": ("tab", ["control", "shift"]),
+        "back": ("[", ["command"]), "forward": ("]", ["command"]), "reload": ("r", ["command"]),
+        "new_window": ("n", ["command"]), "address_bar": ("l", ["command"]),
+        "zoom_in": ("=", ["command"]), "zoom_out": ("-", ["command"]), "actual_size": ("0", ["command"]),
+    ]
+    static let riskyClickWords = ["delete", "remove", "erase", "trash", "buy", "pay", "purchase", "order",
+                                  "checkout", "send", "submit", "post", "publish", "confirm", "transfer",
+                                  "sign out", "log out", "uninstall", "unsubscribe", "discard", "reset", "format"]
+    static let locations = ["home", "desktop", "documents", "downloads", "applications", "pictures", "music",
+                            "movies", "trash", "icloud_drive"]
+    static let systemControls = ["volume_up", "volume_down", "set_volume", "mute", "unmute", "brightness_up",
+                                 "brightness_down", "dark_mode_on", "dark_mode_off", "wifi_on", "wifi_off",
+                                 "lock_screen", "sleep"]
+    static let riskySystemControls: Set<String> = ["wifi_off", "lock_screen", "sleep"]
+    static let settingsPanes = ["general", "wifi", "bluetooth", "network", "sound", "displays", "battery",
+                                "notifications", "focus", "appearance", "wallpaper", "desktop_dock", "keyboard",
+                                "trackpad", "privacy", "accessibility", "users", "storage", "software_update"]
+    static let infoItems = ["battery", "storage", "wifi", "time", "date", "running_apps", "clipboard", "front_app"]
 
     static let allowedKeys: Set<String> = Set(
         ["return", "tab", "escape", "space", "delete", "up", "down", "left", "right"]
@@ -127,17 +177,107 @@ enum MacAction: Equatable {
             }
             let lines = try p.int("amount", in: 1...30) ?? 5
             self = .scroll(direction: direction, lines: lines)
+        case "switch_application":
+            try p.only(["application_name"])
+            self = .switchApplication(name: try p.appName("application_name", required: false))
+        case "hide_application":
+            try p.only(["application_name", "others"])
+            self = .hideApplication(name: try p.appName("application_name")!, others: try p.bool("others"))
+        case "force_quit_application":
+            try p.only(["application_name"])
+            self = .forceQuitApplication(name: try p.appName("application_name")!)
+        case "window_control":
+            try p.only(["operation"])
+            self = .windowControl(try p.oneOf("operation", Self.windowOperations)!)
+        case "app_command":
+            try p.only(["command"])
+            self = .appCommand(try p.oneOf("command", Array(Self.appCommands.keys))!)
+        case "click_element":
+            try p.only(["target"])
+            self = .clickElement(try p.string("target", maxLength: 80)!)
+        case "ask":
+            try p.only(["question", "source"])
+            self = .ask(question: try p.string("question", maxLength: 300)!,
+                        source: try p.oneOf("source", ["screen", "selection", "clipboard", "none"], default: "none")!)
+        case "take_screenshot":
+            try p.only(["area", "destination"])
+            self = .takeScreenshot(area: try p.oneOf("area", ["full", "window", "selection"], default: "full")!,
+                                   destination: try p.oneOf("destination", ["file", "clipboard"], default: "file")!)
+        case "open_location":
+            try p.only(["location", "subfolder"])
+            self = .openLocation(try p.oneOf("location", Self.locations)!,
+                                 subfolder: try p.fileName("subfolder", required: false))
+        case "find_file":
+            try p.only(["query", "open"])
+            self = .findFile(query: try p.string("query", maxLength: 120)!, open: try p.bool("open"))
+        case "create_folder":
+            try p.only(["name", "location"])
+            self = .createFolder(name: try p.fileName("name")!,
+                                 location: try p.oneOf("location", Self.locations, default: "desktop")!)
+        case "trash_selected_files":
+            try p.only([])
+            self = .trashSelectedFiles
+        case "system_control":
+            try p.only(["control", "value"])
+            self = .systemControl(try p.oneOf("control", Self.systemControls)!, value: try p.int("value", in: 0...100))
+        case "open_settings":
+            try p.only(["pane"])
+            self = .openSettings(try p.oneOf("pane", Self.settingsPanes)!)
+        case "get_info":
+            try p.only(["item"])
+            self = .getInfo(try p.oneOf("item", Self.infoItems)!)
+        case "media_control":
+            try p.only(["command"])
+            self = .mediaControl(try p.oneOf("command", ["play_pause", "next", "previous"])!)
+        case "play_media":
+            try p.only(["query", "app"])
+            self = .playMedia(query: try p.string("query", maxLength: 200)!,
+                              app: try p.oneOf("app", ["spotify", "apple_music", "youtube"], default: "youtube")!)
+        case "create_note":
+            try p.only(["text"])
+            self = .createNote(try p.string("text", maxLength: 2000, trim: false)!)
+        case "create_reminder":
+            try p.only(["title", "in_minutes", "due"])
+            self = .createReminder(title: try p.string("title", maxLength: 200)!,
+                                   inMinutes: try p.int("in_minutes", in: 1...10080),
+                                   due: try p.localDateTime("due", required: false))
+        case "list_events":
+            try p.only(["day"])
+            self = .listEvents(day: try p.oneOf("day", ["today", "tomorrow"], default: "today")!)
+        case "create_event":
+            try p.only(["title", "start", "duration_minutes"])
+            self = .createEvent(title: try p.string("title", maxLength: 200)!,
+                                start: try p.localDateTime("start")!,
+                                minutes: try p.int("duration_minutes", in: 5...1440) ?? 60)
+        case "compose_email":
+            try p.only(["to", "subject", "body"])
+            let to = try p.stringArray("to")
+            guard to.count <= 5, to.allSatisfy(Self.isEmail) else {
+                throw ActionValidationError(message: "Those aren't valid email addresses.")
+            }
+            self = .composeEmail(to: to, subject: try p.string("subject", maxLength: 200, required: false),
+                                 body: try p.string("body", maxLength: 2000, required: false, trim: false))
+        case "set_clipboard":
+            try p.only(["text"])
+            self = .setClipboard(try p.string("text", maxLength: 2000, trim: false)!)
         default:
             throw ActionValidationError(message: "Unsupported action “\(dto.type)”.")
         }
     }
 
-    /// The app's own risk policy: input simulation always needs explicit approval.
+    /// The app's own risk policy: free-form input and anything hard to undo needs approval.
     var requiresApproval: Bool {
         switch self {
-        case .typeText, .pressKey: true
-        case .openApplication, .openURL, .searchWeb, .closeApplication, .scroll: false
+        case .typeText, .pressKey, .forceQuitApplication, .trashSelectedFiles, .createEvent: true
+        case .clickElement(let target):
+            Self.riskyClickWords.contains { target.lowercased().contains($0) }
+        case .systemControl(let control, _): Self.riskySystemControls.contains(control)
+        default: false
         }
+    }
+
+    static func isEmail(_ value: String) -> Bool {
+        value.range(of: #"^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$"#, options: .regularExpression) != nil
     }
 }
 
@@ -182,6 +322,39 @@ private struct Params {
         case .number(let n)? where n == n.rounded() && range.contains(Int(n)): return Int(n)
         default: throw ActionValidationError(message: "“\(key)” must be a whole number from \(range.lowerBound) to \(range.upperBound).")
         }
+    }
+
+    func bool(_ key: String) throws -> Bool {
+        switch values[key] {
+        case nil, .null?: return false
+        case .bool(let b)?: return b
+        default: throw ActionValidationError(message: "“\(key)” must be true or false.")
+        }
+    }
+
+    /// One of a fixed set of values.
+    func oneOf(_ key: String, _ options: [String], default fallback: String? = nil) throws -> String? {
+        guard let value = try string(key, maxLength: 40, required: fallback == nil) else { return fallback }
+        guard options.contains(value) else { throw ActionValidationError(message: "“\(value)” isn't allowed for \(key).") }
+        return value
+    }
+
+    /// A plain file or folder name: no slashes, colons or leading dot.
+    func fileName(_ key: String, required: Bool = true) throws -> String? {
+        guard let name = try string(key, maxLength: 120, required: required) else { return nil }
+        guard !name.hasPrefix("."), name.rangeOfCharacter(from: CharacterSet(charactersIn: "/:\\\0")) == nil else {
+            throw ActionValidationError(message: "“\(key)” must be a plain file or folder name.")
+        }
+        return name
+    }
+
+    /// Local time as YYYY-MM-DDTHH:MM.
+    func localDateTime(_ key: String, required: Bool = true) throws -> String? {
+        guard let value = try string(key, maxLength: 16, required: required) else { return nil }
+        guard value.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$"#, options: .regularExpression) != nil else {
+            throw ActionValidationError(message: "“\(key)” must be a time like 2026-05-01T18:30.")
+        }
+        return value
     }
 
     func stringArray(_ key: String) throws -> [String] {

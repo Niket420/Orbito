@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import datetime
 
 from app.config import Settings
 from app.llm.base import LLMProvider, LLMUnavailableError
@@ -29,8 +30,11 @@ class Planner:
         "close it" can be resolved. A rejected plan gets one retry, with the validator's
         error passed back so the model can correct it. The retry is validated just as strictly.
         """
+        now = datetime.now().astimezone()
+        context = f"Local time now: {now:%Y-%m-%dT%H:%M} ({now:%A})\n\n"
         if history:
-            instruction = f"Earlier in this conversation:\n{history}\n\nCurrent instruction: {instruction}"
+            context += f"Earlier in this conversation:\n{history}\n\n"
+        instruction = f"{context}Current instruction: {instruction}"
         raw = await asyncio.to_thread(self.llm.propose_plan, instruction)
         try:
             plan = validate_plan(raw)
@@ -47,6 +51,11 @@ class Planner:
             extra={"provider": self.llm.name, "actions": [a.type.value for a in plan.actions]},
         )
         return plan
+
+
+    async def answer(self, question: str, context: str | None) -> str:
+        """A short answer to a question, using text read from the Mac. Raises LLMError."""
+        return await asyncio.to_thread(self.llm.answer, question, context)
 
 
 def _bedrock(settings: Settings) -> LLMProvider:

@@ -76,6 +76,11 @@ class MockLLMProvider:
         # No summary: the task manager then lists the validated step descriptions.
         return {"summary": "", "actions": actions, "unsupported_reason": None}
 
+    def answer(self, question: str, context: str | None) -> str:
+        if context:
+            return f"Here's what I read: {context[:200]}"
+        return "The mock planner can't answer questions. Configure Groq or Bedrock."
+
     def _parse_clause(self, clause: str, browser: str | None) -> dict[str, Any] | None:
         if m := _VISIT.match(clause):
             return self._open_url(_as_url(m["url"]), browser)

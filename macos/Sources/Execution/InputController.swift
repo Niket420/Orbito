@@ -1,7 +1,7 @@
+import AppKit
 import CoreGraphics
-import Foundation
 
-/// Keyboard simulation, used only for approved `type_text` / `press_key` actions.
+/// Keyboard and mouse simulation for validated actions.
 enum InputController {
     /// ANSI virtual key codes (Carbon kVK_*) for the allowlisted keys.
     static let keyCodes: [String: CGKeyCode] = [
@@ -11,6 +11,8 @@ enum InputController {
         "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17,
         "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23, "9": 25, "7": 26, "8": 28, "0": 29,
         "o": 31, "u": 32, "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46,
+        // Only reachable through named app commands (back, forward, zoom), not press_key.
+        "=": 24, "-": 27, "]": 30, "[": 33,
     ]
 
     static let modifierFlags: [String: CGEventFlags] = [
@@ -56,5 +58,30 @@ enum InputController {
             event?.post(tap: .cghidEventTap)
         }
         return true
+    }
+
+    /// A left click at a point in global (top-left origin) coordinates.
+    static func click(at point: CGPoint) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+        }
+    }
+
+    /// Hardware media and brightness keys (NX_KEYTYPE_* codes from IOKit's ev_keymap.h).
+    enum SpecialKey: Int32 {
+        case brightnessUp = 2, brightnessDown = 3, playPause = 16, next = 17, previous = 18
+    }
+
+    /// Presses a media or brightness key, like the keys on the top row of the keyboard.
+    static func press(_ key: SpecialKey) {
+        for down in [true, false] {
+            let flags = NSEvent.ModifierFlags(rawValue: down ? 0xA00 : 0xB00)
+            let data1 = Int((key.rawValue << 16) | ((down ? 0xA : 0xB) << 8))
+            NSEvent.otherEvent(with: .systemDefined, location: .zero, modifierFlags: flags, timestamp: 0,
+                               windowNumber: 0, context: nil, subtype: 8, data1: data1, data2: -1)?
+                .cgEvent?.post(tap: .cghidEventTap)
+        }
     }
 }

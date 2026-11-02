@@ -241,18 +241,18 @@ def test_env_file_key_names_are_case_insensitive(tmp_path):
 # ----- plan schema & retry -----------------------------------------------------
 
 from app.agent.planner import Planner
-from app.agent.prompts import PLAN_TOOL_SCHEMA
+from app.agent.prompts import PLAN_TOOL_SCHEMA, SYSTEM_PROMPT
 from app.policy.permissions import ACTION_SPECS
 
 
-def test_tool_schema_requires_each_actions_parameters():
-    options = PLAN_TOOL_SCHEMA["properties"]["actions"]["items"]["anyOf"]
-    by_type = {o["properties"]["type"]["enum"][0]: o["properties"]["parameters"] for o in options}
-    assert set(by_type) == {t.value for t in ACTION_SPECS}
-    assert by_type["open_application"]["required"] == ["application_name"]
-    assert by_type["search_web"]["required"] == ["query"]
-    assert "application_name" in by_type["search_web"]["properties"]
-    assert all(p["additionalProperties"] is False for p in by_type.values())
+def test_catalog_lists_every_action_and_its_parameters():
+    # Parameters live in the system prompt; the tool schema only names the action types.
+    action = PLAN_TOOL_SCHEMA["properties"]["actions"]["items"]
+    assert set(action["properties"]["type"]["enum"]) == {t.value for t in ACTION_SPECS}
+    assert "- open_application(application_name: text):" in SYSTEM_PROMPT
+    assert "- search_web(query: text, application_name?: text):" in SYSTEM_PROMPT
+    assert "scroll(direction: up|down|left|right, amount?: int 1-30)" in SYSTEM_PROMPT
+    assert "- trash_selected_files():" in SYSTEM_PROMPT
 
 
 class SequenceLLM:

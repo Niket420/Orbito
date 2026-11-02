@@ -145,26 +145,49 @@ and no keys between requests.
 
 ## Supported actions
 
-| Action | Example | Approval |
-|---|---|---|
-| Open an app | "Open Notes" | automatic |
-| Open a link (http/https only) | "Go to apple.com" | automatic |
-| Web search | "Search for AI news" | automatic |
-| Close an app (normal quit) | "Close Calculator" | automatic |
-| Scroll the front window | "Scroll down" | automatic (needs Accessibility) |
-| Type text | "Type hello world" | **asks first** (short text is automatic in agent mode) |
-| Press a key or shortcut | "Press command t" | **asks first** |
+Say it naturally; the planner picks the action. Steps marked **asks** wait for your
+"yes" (or a click). Everything else runs straight away.
 
-The backend and the app each enforce this list separately. Shortcuts that quit,
-log out, lock or delete things are always blocked. The LLM can't run shell commands.
+| Area | Examples | Approval |
+|---|---|---|
+| Apps | "Open Notes", "close Calculator", "switch to Chrome", "switch back", "hide Slack", "hide everything else" | automatic |
+| | "Force quit Xcode" | **asks** |
+| Windows | "Full screen", "put Safari on the left half", "minimize", "centre it", "move to the other screen", "close this window" | automatic |
+| Editing and tabs | "Copy", "paste", "undo", "save", "new tab", "close tab", "go back", "reload", "zoom in" | automatic |
+| Typing and keys | "Type hello world", "press command shift 4" | **asks** (short typing is automatic in agent mode) |
+| Clicking | "Click Sign in", "click the File menu" | automatic; **asks** for buttons like Delete, Buy, Send, Submit |
+| Scrolling | "Scroll down a lot" | automatic |
+| Reading and questions | "What's on my screen?", "summarize this page", "translate the selected text to Hindi", "what's 18% of 2400?" | automatic |
+| Web | "Go to apple.com", "search for AI news", "play lo-fi on YouTube / Spotify" | automatic |
+| Screenshots | "Take a screenshot", "screenshot this window", "screenshot an area to the clipboard" | automatic |
+| Files | "Open Downloads", "find my resume PDF", "open my resume", "new folder Projects on the Desktop" | automatic |
+| | "Delete this file" (the Finder selection, to the Trash) | **asks** |
+| System | "Volume 40%", "mute", "brighter", "dark mode on", "Wi-Fi on", "open Bluetooth settings" | automatic |
+| | "Wi-Fi off", "lock my Mac", "sleep" | **asks** |
+| Information | "How much battery?", "free space?", "what time is it?", "what's open?", "what did I copy?" | automatic |
+| Media | "Pause", "next song", "previous track" | automatic |
+| Notes and reminders | "Note: buy milk", "remind me at 6 to call mom", "timer for 10 minutes", "what's on tomorrow?" | automatic |
+| | "Add a meeting tomorrow at 3" | **asks** |
+| Email | "Draft an email to rahul@example.com" (opens a draft; you send it) | automatic |
+
+Never possible: shell commands, passwords or payment details, sending messages or emails,
+installing software, emptying the Trash, restart, shut down and log out. The backend and the
+app each enforce the action list separately, and user text reaches AppleScript only as
+arguments, never as script code.
+
+**Privacy:** "what's on my screen", "the selected text" and "the clipboard" send that text
+to the LLM (Groq or Bedrock) to answer. It isn't saved afterwards.
 
 ## macOS permissions
 
 Orbito asks for each permission only when it first needs it.
 
 - **Microphone**: asked the first time you hold the mic button.
-- **Accessibility**: needed only for typing and key presses (System Settings →
-  Privacy & Security → Accessibility). Opening apps and links doesn't need it.
+- **Accessibility**: needed for typing, keys, clicking, windows, scrolling and reading the
+  screen (System Settings → Privacy & Security → Accessibility). Opening apps and links doesn't need it.
+- **Automation**: asked the first time Orbito uses Finder, Notes, Reminders, Calendar or
+  System Events (dark mode).
+- **Screen Recording**: asked the first time you take a screenshot of other apps' windows.
 
 When you run the app with `swift run` or `scripts/dev.sh app`, macOS gives these
 permissions to the terminal or editor that launched it. Use `scripts/package.sh`

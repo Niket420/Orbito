@@ -31,6 +31,7 @@ final class ActionExecutor {
         case .pressKey(let key, let modifiers): outcome = await pressKey(key, modifiers: modifiers)
         case .closeApplication(let name): outcome = await closeApplication(name)
         case .scroll(let direction, let lines): outcome = await scroll(direction, lines: lines)
+        default: outcome = await executeMore(action)
         }
         Log.execution.info("Result: success=\(outcome.success)")
         return outcome
@@ -138,10 +139,10 @@ final class ActionExecutor {
     }
 
     /// Ensures Accessibility permission and that input goes to the user's app, not Orbito.
-    private func prepareForInput() async -> ExecutionOutcome? {
+    func prepareForInput() async -> ExecutionOutcome? {
         guard AccessibilityController.isTrusted else {
             AccessibilityController.requestTrust()
-            return .failure("Orbito needs Accessibility permission to type. Turn it on in System Settings → "
+            return .failure("Orbito needs Accessibility permission for this. Turn it on in System Settings → "
                             + "Privacy & Security → Accessibility, then try again.", retryable: false)
         }
         if observer.isSelfFrontmost {
@@ -159,17 +160,10 @@ final class ActionExecutor {
 }
 
 private extension MacAction {
-    /// Action kind without user content, safe for logs.
+    /// Action kind without user content, safe for logs (the case name only).
     var kind: String {
-        switch self {
-        case .openApplication: "open_application"
-        case .openURL: "open_url"
-        case .searchWeb: "search_web"
-        case .typeText: "type_text"
-        case .pressKey: "press_key"
-        case .closeApplication: "close_application"
-        case .scroll: "scroll"
-        }
+        let name = String(describing: self)
+        return String(name.prefix { $0 != "(" })
     }
 }
 
