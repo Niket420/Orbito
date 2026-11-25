@@ -286,16 +286,6 @@ private struct ComposerCard: View {
                          : "Or tap \(assistant.shortcut.preset.shortLabel) anywhere")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.secondaryInk)
-                    if assistant.isWaitingForWakeWord {
-                        HStack(spacing: 6) {
-                            Circle().fill(Theme.success).frame(width: 6, height: 6)
-                            Text("Say “\(assistant.wakePhrase)” anytime")
-                            Button("Turn off", action: assistant.stopHandsFree)
-                                .buttonStyle(.link)
-                        }
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.secondaryInk)
-                    }
                 }
                 Spacer()
                 if assistant.isTaskActive {

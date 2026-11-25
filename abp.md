@@ -293,6 +293,8 @@ Agent mode (continuous conversation)
 * close_application quits normally (apps can still ask to save); force quit and ⌘Q stay blocked. scroll moves the pointer into the front window first, because macOS sends scroll events to whatever is under the pointer.
 * Next: a plan → act → observe loop, so the planner sees the screen after each step instead of planning blind.
 
+Update: the wake word was removed. The shortcut (tap or hold) and agent mode cover every use, the wake word was missing about half of real calls (the double-check rejected them), and an always-on microphone wasn't worth it. Silero VAD stays for end-of-speech. The notes below record how it worked.
+
 Wake word: built with "Hey Jarvis" as a stand-in until the custom "Hey Orbito" model is trained
 
 * Set ORBITO_WAKE_WORD_MODEL to the trained .onnx path and ORBITO_WAKE_WORD_PHRASE to "hey orbito" to switch.

@@ -1,17 +1,16 @@
 import Foundation
 
-/// Streams the microphone to the backend's /voice/stream, which spots the wake word,
+/// Streams the microphone to the backend's /voice/stream, which
 /// notices when the user stops talking and returns the transcript. Audio is only
 /// streamed over the local connection; nothing is saved.
 @MainActor
 final class HandsFreeListener {
     enum Mode: String {
-        case idle, wake, command
+        case idle, command
     }
 
     enum Event {
-        case ready(wakeAvailable: Bool, phrase: String)
-        case wake
+        case ready
         case transcribing
         case transcript(String, provider: String)
         case noSpeech
@@ -21,8 +20,7 @@ final class HandsFreeListener {
         /// Event kind without user content, safe for logs.
         var logName: String {
             switch self {
-            case .ready(let wake, _): "ready(wake: \(wake))"
-            case .wake: "wake"
+            case .ready: "ready"
             case .transcribing: "transcribing"
             case .transcript(let text, let provider): "transcript(\(text.count) chars, \(provider))"
             case .noSpeech: "no_speech"
@@ -91,10 +89,7 @@ final class HandsFreeListener {
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let type = json["type"] as? String else { continue }
             switch type {
-            case "ready":
-                onEvent(.ready(wakeAvailable: json["wake_available"] as? Bool ?? false,
-                               phrase: json["wake_phrase"] as? String ?? ""))
-            case "wake": onEvent(.wake)
+            case "ready": onEvent(.ready)
             case "transcribing": onEvent(.transcribing)
             case "transcript":
                 onEvent(.transcript(json["text"] as? String ?? "", provider: json["provider"] as? String ?? ""))

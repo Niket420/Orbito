@@ -33,10 +33,6 @@ struct SettingsView: View {
                 Text("Tap both keys: Orbito listens and sends your command when you stop talking. "
                      + "Or hold them while you speak and let go to send.")
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle("Then listen for “\(assistant.wakePhrase)”", isOn: $assistant.wakeWordEnabled)
-                Text("After the first tap, say “\(assistant.wakePhrase)” to give the next command "
-                     + "hands-free. The microphone stays on until you turn this off or quit.")
-                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Send automatically after speaking", isOn: $autoSendShortcut)
                 Toggle("Launch Orbito at login", isOn: Binding(get: { launchAtLogin.isOn },
                                                                set: { launchAtLogin.set($0) }))
@@ -104,7 +100,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 680)
+        .frame(width: 500, height: 620)
         .tint(Theme.accent)
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
             accessibilityTrusted = AccessibilityController.isTrusted

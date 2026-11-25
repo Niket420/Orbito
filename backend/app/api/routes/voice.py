@@ -1,12 +1,11 @@
-"""WebSocket /voice/stream: hands-free listening.
+"""WebSocket /voice/stream: listening for a command until the user stops talking.
 
 The app streams raw 16 kHz mono 16-bit PCM as binary messages and controls the
 stream with JSON text messages:
-  {"mode": "wake" | "command" | "idle"}   what to listen for
+  {"mode": "command" | "idle"}            start recording a command, or pause
   {"action": "finish"}                    end the current command now
 The backend replies with JSON events:
-  {"type": "ready", "wake_available": bool, "wake_phrase": str}
-  {"type": "wake"}                         wake word heard and confirmed; recording the command
+  {"type": "ready"}
   {"type": "transcribing"}                 the user stopped talking
   {"type": "transcript", "text": str, "provider": str}
   {"type": "no_speech"}
@@ -24,8 +23,7 @@ import secrets
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 from app.speech.base import SpeechError
-from app.speech.mock import MockSpeechRecognizer
-from app.speech.voice_stream import Event, Mode, VoiceStream, build_voice_stream, matches_phrase, to_wav
+from app.speech.voice_stream import Event, Mode, VoiceStream, to_wav
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -45,12 +43,9 @@ async def voice_stream(ws: WebSocket) -> None:
         return
     await ws.accept()
 
-    settings = ws.app.state.settings
     factory = ws.app.state.voice_factory
     try:
-        stream: VoiceStream = await asyncio.to_thread(
-            factory, settings.wake_word_model, settings.wake_word_threshold
-        )
+        stream: VoiceStream = await asyncio.to_thread(factory)
     except Exception as exc:  # noqa: BLE001 - report any model problem to the app
         log.error("voice_unavailable", extra={"error": type(exc).__name__})
         await ws.send_json({"type": "error", "message": "Hands-free listening isn't set up. "
@@ -58,27 +53,14 @@ async def voice_stream(ws: WebSocket) -> None:
         await ws.close()
         return
 
-    await ws.send_json({"type": "ready", "wake_available": stream.wake_available,
-                        "wake_phrase": settings.wake_word_phrase})
+    await ws.send_json({"type": "ready"})
     speech = ws.app.state.speech
-    verifier = ws.app.state.wake_verifier
     send_lock = asyncio.Lock()
     background: set[asyncio.Task] = set()
 
     async def send(payload: dict) -> None:
         async with send_lock:
             await ws.send_json(payload)
-
-    async def verify(clip) -> None:
-        ok = True
-        if not isinstance(verifier, MockSpeechRecognizer):
-            try:
-                heard = await asyncio.to_thread(verifier.transcribe, to_wav(clip))
-                ok = matches_phrase(heard.text, settings.wake_word_phrase)
-            except SpeechError:
-                ok = False
-        log.info("wake_word_candidate", extra={"confirmed": ok})
-        await handle(stream.verified(ok))
 
     async def transcribe(audio) -> None:
         try:
@@ -99,11 +81,7 @@ async def voice_stream(ws: WebSocket) -> None:
 
     async def handle(events: list[Event]) -> None:
         for event in events:
-            if event.kind == "candidate":
-                spawn(verify(event.audio))
-            elif event.kind == "wake":
-                await send({"type": "wake"})
-            elif event.kind == "utterance":
+            if event.kind == "utterance":
                 await send({"type": "transcribing"})
                 spawn(transcribe(event.audio))
             elif event.kind == "no_speech":
@@ -123,7 +101,7 @@ async def voice_stream(ws: WebSocket) -> None:
                     continue
                 if control.get("action") == "finish":
                     await handle(stream.finish())
-                elif control.get("mode") in {m.value for m in (Mode.IDLE, Mode.WAKE, Mode.COMMAND)}:
+                elif control.get("mode") in {m.value for m in Mode}:
                     stream.set_mode(Mode(control["mode"]))
                     log.info("voice_mode", extra={"mode": control["mode"]})
     except WebSocketDisconnect:

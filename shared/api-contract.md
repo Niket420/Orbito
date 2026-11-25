@@ -155,21 +155,19 @@ The body is raw `audio/wav`: 16 kHz, mono, 16-bit PCM, at most 10 MB.
 
 ### `WebSocket /voice/stream`
 
-Hands-free listening. It needs the same `Authorization: Bearer` header as the other
+Listening for a command until the user stops talking. It needs the same `Authorization: Bearer` header as the other
 endpoints. The app streams raw 16 kHz mono 16-bit little-endian PCM as binary
 messages and controls the stream with JSON text messages:
 
 | App → backend | Meaning |
 |---|---|
-| `{"mode": "wake"}` | Listen for the wake word (openWakeWord), then double-check it with Whistle |
 | `{"mode": "command"}` | Record a command now, until the user stops talking (Silero VAD) |
 | `{"mode": "idle"}` | Ignore audio |
 | `{"action": "finish"}` | End the current command now |
 
 | Backend → app | Meaning |
 |---|---|
-| `{"type": "ready", "wake_available": true, "wake_phrase": "hey jarvis"}` | Models loaded |
-| `{"type": "wake"}` | Wake word confirmed; recording the command |
+| `{"type": "ready"}` | The end-of-speech model is loaded |
 | `{"type": "transcribing"}` | The user stopped talking |
 | `{"type": "transcript", "text": "...", "provider": "whistle"}` | The command as text |
 | `{"type": "no_speech"}` | Nothing was said within 6 s |

@@ -53,12 +53,6 @@ class Settings(BaseSettings):
     # Language spoken to Orbito (ISO 639-1); empty lets Whisper detect it.
     speech_language: str | None = "en"
 
-    # Wake word (openWakeWord): a built-in model name or a path to a custom .onnx file.
-    wake_word_model: str = "hey_jarvis"
-    # The phrase as Whistle should hear it; used to double-check each detection.
-    wake_word_phrase: str = "hey jarvis"
-    wake_word_threshold: float = Field(default=0.5, gt=0, lt=1)
-
     log_level: str = "INFO"
 
     @field_validator("host")

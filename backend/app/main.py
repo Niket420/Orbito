@@ -95,12 +95,12 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if isinstance(app.state.wake_verifier, WhistleRecognizer):
-            # Warm the model in the background so the first transcription is fast.
-            asyncio.get_running_loop().run_in_executor(None, _warm, app.state.wake_verifier)
+        if whistle is not None:
+            # Warm the model in the background so the first offline transcription is fast.
+            asyncio.get_running_loop().run_in_executor(None, _warm, whistle)
         if voice_installed():
-            # Fetch the wake-word and VAD models now rather than when listening starts.
-            asyncio.get_running_loop().run_in_executor(None, _prepare_voice, settings.wake_word_model)
+            # Fetch the end-of-speech model now rather than when listening starts.
+            asyncio.get_running_loop().run_in_executor(None, _prepare_voice)
         log.info(
             "backend_started",
             extra={"llm": app.state.task_manager.planner_name, "speech": app.state.speech.name},
@@ -114,8 +114,6 @@ def create_app(
     app.state.api_token = api_token or resolve_api_token(settings)
     whistle = WhistleRecognizer() if speech_recognizer is None and whistle_installed() else None
     app.state.speech = speech_recognizer or build_speech(settings, whistle)
-    # Wake-word double-checks run often, so they stay on the Mac when Whistle is available.
-    app.state.wake_verifier = whistle or app.state.speech
     app.state.task_manager = task_manager or TaskManager(
         Planner(build_llm_provider(settings)),
         TaskRepository(settings.data_dir / "tasks.json"),
@@ -135,9 +133,9 @@ def _warm(recognizer: WhistleRecognizer) -> None:
         pass  # reported again, with a user-facing message, on first transcription
 
 
-def _prepare_voice(wake_model: str) -> None:
+def _prepare_voice() -> None:
     try:
-        prepare_models(wake_model)
+        prepare_models()
     except Exception as exc:  # noqa: BLE001 - reported again when listening starts
         log.warning("voice_models_unavailable", extra={"error": type(exc).__name__})
 

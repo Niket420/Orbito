@@ -263,7 +263,7 @@ struct NotchView: View {
         case .listening:
             HStack(spacing: 8) {
                 Text("Agent mode").notchText(opacity: 0.9)
-                Text("talk freely, no wake word").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+                Text("talk freely, no keys").font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
                 Spacer(minLength: 4)
                 Toggle("Agent mode", isOn: Binding(get: { assistant.isAgentMode },
                                                    set: { assistant.setAgentMode($0) }))

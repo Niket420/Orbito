@@ -100,14 +100,13 @@ your installed apps are sent with each request as a vocabulary hint, so "Chrome"
 isn't heard as "Crown". The audio goes to Groq and is not stored by Orbito.
 
 If Groq can't be reached, Orbito falls back to **Cactus Whistle** on your Mac
-(`cactus-needle`, about 17 MB, telemetry off). Whistle also does the quick
-wake-word double-check, so those clips never leave your Mac. With neither available,
+(`cactus-needle`, about 17 MB, telemetry off). With neither available,
 a **mock transcriber** returns a fixed sentence and the app labels it.
 
 Set `ORBITO_SPEECH_PROVIDER=whistle` to keep all audio on your Mac, and
 `ORBITO_SPEECH_LANGUAGE` if you speak to Orbito in a language other than English.
 
-## The notch, the shortcut and the wake word
+## The notch and the shortcut
 
 Tap **⌃ Control + ⌥ Option** together in any app and start talking (or hold them
 while you speak and let go to send). Orbito grows down out of the MacBook's camera notch with a live
@@ -116,24 +115,19 @@ second (click ✕ to cancel) and sends it. Tap the keys again to send straight a
 Steps that need approval show **Allow** and **Deny** in the notch. Just say "yes" or
 "no" ("go ahead", "allow", "deny", "cancel" also work), or click.
 
-After the first tap, Orbito also listens for **"Hey Jarvis"**, so the next command
-needs no keys at all. This is a stand-in until the custom "Hey Orbito" model is
-trained. Each detection is double-checked by Whistle, because the fast wake-word
-model also reacts to similar phrases. Turn it off from the main window or in Settings.
+The microphone is only on while you give a command (or in agent mode, below).
 
-- Wake word: openWakeWord. End of speech: Silero VAD. Both run on your Mac, and
-  their models (about 8 MB) download on first use. Audio is never saved.
-- Settings → Voice shortcut: choose ⌃⌥, fn⌃ or ⌥⌘; turn the wake word, automatic
-  sending and **Launch Orbito at login** (packaged app only) on or off.
-- To use your own wake word, set `ORBITO_WAKE_WORD_MODEL=/path/to/model.onnx` and
-  `ORBITO_WAKE_WORD_PHRASE=hey orbito` in `backend/.env`.
+- End of speech: Silero VAD, on your Mac. Its model (about 2 MB) downloads on first
+  use. Audio is never saved.
+- Settings → Voice shortcut: choose ⌃⌥, fn⌃ or ⌥⌘; turn automatic sending and
+  **Launch Orbito at login** (packaged app only) on or off.
 - The notch panel never takes keyboard focus, and closing the main window keeps
   Orbito running in the notch. Quit with ⌘Q.
 
 ### Agent mode
 
 Tap ⌃⌥ and turn on **Agent mode** with the switch in the notch. Now just talk: "open
-Calculator" → "type 2 plus 2" → "now close it" → "scroll down". There's no wake word
+Calculator" → "type 2 plus 2" → "now close it" → "scroll down". There are no keys
 and no keys between requests.
 
 - Orbito remembers the last few requests, so "it" and "that app" work.
@@ -234,11 +228,10 @@ Remaining work:
 - Embed a relocatable Python runtime (for example python-build-standalone) for a self-contained `.app`.
 - Notarization.
 - Streaming transcription: Whistle supports streaming, but the app doesn't use it yet.
-- A custom "Hey Orbito" wake-word model ("Hey Jarvis" is used for now).
 - Vision-based observation.
 
 ## Active project
 
 Orbito is under active development, so features, the API and the UI change often.
-Up next: training the "Hey Orbito" wake-word model and more accurate on-device
+Up next: faster responses and more accurate on-device
 speech recognition.

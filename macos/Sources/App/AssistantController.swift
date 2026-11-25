@@ -55,20 +55,9 @@ final class AssistantController {
     static let autoSendDelay: Duration = .milliseconds(1200)
 
     private let handsFree = HandsFreeListener()
-    /// Recording a command through the hands-free stream (shortcut or wake word).
+    /// Recording a command through the hands-free stream (shortcut or agent mode).
     private(set) var isHandsFreeListening = false
-    /// Listening for the wake word between commands (after the first shortcut tap).
-    private(set) var isWakeArmed = false
-    private(set) var wakeAvailable = false
-    private(set) var wakePhrase = "Hey Jarvis"
-    var wakeWordEnabled = UserDefaults.standard.object(forKey: "wakeWordEnabled") as? Bool ?? true {
-        didSet {
-            UserDefaults.standard.set(wakeWordEnabled, forKey: "wakeWordEnabled")
-            if !wakeWordEnabled { stopHandsFree() }
-        }
-    }
-
-    /// Agent mode: listen continuously and run every request, no wake word needed.
+    /// Agent mode: listen continuously and run every request, no key press needed.
     private(set) var isAgentMode = false
     static let agentIdleTimeout: Duration = .seconds(300)
     /// Typing this short is approved automatically in agent mode; longer text still asks.
@@ -76,7 +65,6 @@ final class AssistantController {
 
     /// Showing "listening" (the mic is also open while busy in agent mode, but only for "stop").
     var isListening: Bool { isRecording || (isHandsFreeListening && !isBusy) }
-    var isWaitingForWakeWord: Bool { isWakeArmed && wakeAvailable && !isListening && !isAgentMode }
     private var isBusy: Bool { isTaskActive || isSubmitting || isTranscribing || pendingAutoSend != nil }
 
     private var sessionID = AssistantController.newSessionID()
@@ -199,7 +187,7 @@ final class AssistantController {
         isRecording ? stopRecording() : startRecording()
     }
 
-    // MARK: - Shortcut and wake word
+    // MARK: - Shortcut and agent mode
 
     func shortcutEvent(_ event: ModifierTapDetector.Event) {
         Log.app.notice("Shortcut \(String(describing: event), privacy: .public)")
@@ -235,7 +223,6 @@ final class AssistantController {
         }
         guard !isTaskActive, !isTranscribing, !isSubmitting else { return }
         clearFinishedTask()
-        if wakeWordEnabled { isWakeArmed = true }
         Task {
             do {
                 try await openHandsFree()
@@ -250,9 +237,8 @@ final class AssistantController {
         }
     }
 
-    /// Stops listening for the wake word until the shortcut is used again.
+    /// Turns the microphone stream off (and agent mode with it).
     func stopHandsFree() {
-        isWakeArmed = false
         isHandsFreeListening = false
         isAgentMode = false
         agentIdleTask?.cancel()
@@ -338,13 +324,8 @@ final class AssistantController {
     private func handle(_ event: HandsFreeListener.Event) {
         Log.app.notice("Hands-free event \(event.logName, privacy: .public)")
         switch event {
-        case .ready(let wakeAvailable, let phrase):
-            self.wakeAvailable = wakeAvailable
-            if !phrase.isEmpty { wakePhrase = phrase.capitalized }
-        case .wake:
-            guard !isTaskActive, !isSubmitting, !isRecording else { handsFree.setMode(.idle); return }
-            NSSound(named: "Tink")?.play()
-            beginHandsFreeListening()
+        case .ready:
+            break
         case .transcribing:
             isHandsFreeListening = false
             audioLevel = 0
@@ -383,7 +364,7 @@ final class AssistantController {
         }
     }
 
-    /// In agent mode every request is sent without a wake word. While a task runs, only
+    /// In agent mode every request is sent without a key press. While a task runs, only
     /// "stop" is acted on; noise and chit-chat are dropped here or by the planner.
     private func handleAgentSpeech(_ raw: String) {
         let text = raw.trimmed
@@ -402,8 +383,8 @@ final class AssistantController {
         scheduleAutoSend(text)
     }
 
-    /// After each command: listen again (agent mode), wait for the wake word, pause while
-    /// busy, or turn the microphone off when the wake word isn't in use.
+    /// After each command: listen again (agent mode or an approval), pause while busy,
+    /// or turn the microphone off.
     private func refreshHandsFreeMode() {
         guard handsFree.isOpen, !isHandsFreeListening, !isTranscribing else { return }
         if (isAgentMode || pendingApproval != nil) && !isRecording {
@@ -412,8 +393,6 @@ final class AssistantController {
             isHandsFreeListening = true
         } else if isTaskActive || isSubmitting || isRecording || pendingAutoSend != nil {
             handsFree.setMode(.idle)
-        } else if isWakeArmed && wakeWordEnabled && wakeAvailable {
-            handsFree.setMode(.wake)
         } else {
             handsFree.close()
         }

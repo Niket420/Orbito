@@ -136,7 +136,7 @@
         <div><strong data-count="30">0</strong><span>things it can do on your Mac</span></div>
         <div><strong>~0.4<small>s</small></strong><span>to turn speech into text</span></div>
         <div><strong>0</strong><span>clicks: approve risky steps by saying "yes"</span></div>
-        <div><strong>2</strong><span>keys to start, or just say “Hey Jarvis”</span></div>
+        <div><strong>2</strong><span>keys to start: tap, talk, done</span></div>
       </div>
     </section>
 
@@ -159,7 +159,7 @@
         <div class="reveal">
           <p class="kicker">Agent mode</p>
           <h2>Leave the mic on. Keep talking.</h2>
-          <p>Flip the switch in the notch and Orbito keeps listening, with no wake word between requests. It remembers what you just did, so "now close it" knows what "it" is.</p>
+          <p>Flip the switch in the notch and Orbito keeps listening, with no keys between requests. It remembers what you just did, so "now close it" knows what "it" is.</p>
           <ul class="ticks">
             <li>Ignores background talk and phone calls</li>
             <li>Say "stop" to cancel whatever is running</li>
@@ -187,7 +187,7 @@
           <h2>From your voice to your Mac in about three seconds.</h2>
         </header>
         <ol class="pipeline">
-          <li class="reveal"><span class="pipeline__n">01</span><h3>Listen</h3><p>Tap <kbd>⌃</kbd><kbd>⌥</kbd> or say the wake word. A tiny on-device model notices when you stop talking. Audio is never saved.</p><span class="pipeline__t">on your Mac</span></li>
+          <li class="reveal"><span class="pipeline__n">01</span><h3>Listen</h3><p>Tap <kbd>⌃</kbd><kbd>⌥</kbd> and talk. A tiny on-device model notices when you stop talking. Audio is never saved.</p><span class="pipeline__t">on your Mac</span></li>
           <li class="reveal"><span class="pipeline__n">02</span><h3>Understand</h3><p>Whisper turns speech into text, using your installed app names so "Chrome" isn't heard as "crown".</p><span class="pipeline__t">~0.4 s</span></li>
           <li class="reveal"><span class="pipeline__n">03</span><h3>Plan</h3><p>An LLM turns your words into a short list of allowed steps. It can't invent new actions or run shell commands.</p><span class="pipeline__t">~1.5 s</span></li>
           <li class="reveal"><span class="pipeline__n">04</span><h3>Check</h3><p>Every step is validated twice, by the backend and again by the Mac app. Risky ones wait for your "yes".</p><span class="pipeline__t">instant</span></li>
@@ -280,7 +280,7 @@
           <li><time>Nov 2026</time><div><h3>Full Mac control</h3><p>30 actions: windows, clicking buttons by name, screenshots, files, volume and brightness, reminders, calendar, media, and questions about your screen.</p></div></li>
           <li><time>Nov 2026</time><div><h3>Approve by voice</h3><p>Answer "yes" or "no" when a step needs approval. No clicking needed.</p></div></li>
           <li><time>Oct 2026</time><div><h3>Agent mode</h3><p>Continuous listening with memory of the last few requests, ignoring background talk.</p></div></li>
-          <li><time>Oct 2026</time><div><h3>Wake word and shortcut</h3><p>Tap or hold <kbd>⌃</kbd><kbd>⌥</kbd>, or say "Hey Jarvis" after the first tap.</p></div></li>
+          <li><time>Oct 2026</time><div><h3>Voice shortcut</h3><p>Tap <kbd>⌃</kbd><kbd>⌥</kbd> and talk, or hold the keys while you speak.</p></div></li>
           <li><time>Oct 2026</time><div><h3>First version</h3><p>Voice to plan to action, living in the notch.</p></div></li>
         </ol>
       </div>
@@ -296,11 +296,10 @@
         <div class="faq__list">
           <details class="reveal"><summary>Is Orbito free?</summary><p>Yes. It's free and open source. You can read every line on GitHub.</p></details>
           <details class="reveal"><summary>Which Macs does it run on?</summary><p>Macs with Apple Silicon (M1 or newer) running macOS 14 Sonoma or later. The notch panel works best on MacBooks with a notch, but Orbito works on any display.</p></details>
-          <details class="reveal"><summary>Does it work offline?</summary><p>Listening for the wake word and noticing when you stop talking happen on your Mac. Understanding and planning use cloud models, so you need an internet connection.</p></details>
+          <details class="reveal"><summary>Does it work offline?</summary><p>Noticing when you stop talking happens on your Mac. Understanding and planning use cloud models, so you need an internet connection.</p></details>
           <details class="reveal"><summary>Is my voice recorded?</summary><p>No recording is ever saved. Audio is turned into text and then discarded. Logs keep only what type of step ran, never your words.</p></details>
           <details class="reveal"><summary>Why does macOS say it can't verify the developer?</summary><p>Orbito isn't signed through Apple's paid developer program yet. Installing with the Terminal command avoids the warning; with the manual download, click Open Anyway once in Privacy &amp; Security.</p></details>
           <details class="reveal"><summary>Can it do things I didn't ask for?</summary><p>No. It can only use a fixed list of actions, each step is checked twice, and risky steps wait for your approval. It can't run shell commands or send messages.</p></details>
-          <details class="reveal"><summary>Why "Hey Jarvis" and not "Hey Orbito"?</summary><p>A custom "Hey Orbito" wake word is being trained. Until then, Orbito uses a ready-made "Hey Jarvis" model, double-checked so similar phrases don't trigger it.</p></details>
         </div>
       </div>
     </section>
