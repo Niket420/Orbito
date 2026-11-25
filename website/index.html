@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orbito: control your Mac with your voice</title>
+  <meta name="description" content="Orbito is a voice agent for macOS. Say what you want, and it opens apps, moves windows, reads your screen, sets reminders and more, and asks before anything risky.">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta property="og:title" content="Orbito: control your Mac with your voice">
+  <meta property="og:description" content="Tap two keys, say what you want. Orbito plans it, checks it, and does it on your Mac.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav" id="top">
+    <div class="wrap nav__inner">
+      <a class="brand" href="#top" aria-label="Orbito home">
+        <svg class="glyph" viewBox="0 0 64 48" aria-hidden="true"><use href="#orbito-glyph"/></svg>
+        <span>rbito</span>
+      </a>
+      <nav class="nav__links" aria-label="Main">
+        <a href="#commands">What it does</a>
+        <a href="#how">How it works</a>
+        <a href="#safety">Safety</a>
+        <a href="#install">Install</a>
+        <a href="#changelog">Changelog</a>
+        <a href="#report">Report a bug</a>
+      </nav>
+      <div class="nav__actions">
+        <a class="icon-link" href="https://github.com/Niket420/Orbito" aria-label="Orbito on GitHub" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        </a>
+        <a class="btn btn--primary btn--sm" href="#install" data-download>Download</a>
+        <button class="nav__menu" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+    <nav class="mobile-menu" id="mobile-menu" aria-label="Mobile" hidden>
+      <a href="#commands">What it does</a>
+      <a href="#how">How it works</a>
+      <a href="#safety">Safety</a>
+      <a href="#install">Install</a>
+      <a href="#changelog">Changelog</a>
+      <a href="#report">Report a bug</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap hero__grid">
+        <div class="hero__copy">
+          <p class="eyebrow reveal"><span class="dot"></span> <span data-version-label>Early access</span><span class="sep">·</span>macOS 14+<span class="sep">·</span>Apple Silicon</p>
+          <h1 class="reveal">Say it.<br>Your Mac <em>does it.</em></h1>
+          <p class="lede reveal">Orbito is a voice agent that lives in your MacBook's notch. Tap <span class="keys"><kbd>⌃</kbd><kbd>⌥</kbd></span>, say what you want, and it opens apps, arranges windows, reads your screen, sets reminders and more. It asks before anything risky.</p>
+          <div class="hero__cta reveal">
+            <a class="btn btn--primary btn--lg" href="#install" data-download>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.5-1-2.5-4zM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.6 2.8-1.4z"/></svg>
+              <span data-download-label>Download for macOS</span>
+            </a>
+            <button class="copy-cmd" data-copy="curl -fsSL https://orbito.app/install.sh | bash" aria-label="Copy the install command">
+              <span class="copy-cmd__prompt">$</span>
+              <code>curl -fsSL orbito.app/install.sh | bash</code>
+              <span class="copy-cmd__state" aria-hidden="true">Copy</span>
+            </button>
+          </div>
+          <p class="hero__meta reveal">Free · Open source · <a href="https://github.com/Niket420/Orbito" target="_blank" rel="noopener">View the code</a></p>
+        </div>
+
+        <div class="hero__stage reveal" aria-label="Orbito running on a Mac">
+          <div class="screen">
+            <div class="screen__menubar">
+              <span class="screen__apple"></span><span>Finder</span><span>File</span><span>Edit</span><span>View</span>
+              <span class="screen__clock" data-clock>9:41</span>
+            </div>
+            <div class="notch" data-notch data-phase="hidden">
+              <div class="notch__row">
+                <svg class="notch__glyph" viewBox="0 0 64 48" aria-hidden="true"><use href="#orbito-glyph"/></svg>
+                <span class="notch__title" data-notch-title></span>
+                <span class="notch__trail" data-notch-trail></span>
+              </div>
+              <div class="notch__extra" data-notch-extra></div>
+            </div>
+            <div class="screen__windows" aria-hidden="true">
+              <div class="win win--a" data-win-a><i></i><i></i><i></i><div class="win__body"><b></b><b></b><b></b><b class="short"></b></div></div>
+              <div class="win win--b" data-win-b><i></i><i></i><i></i><div class="win__body"><b></b><b class="short"></b><b></b></div></div>
+            </div>
+            <div class="bot-wrap">
+              <svg class="bot" data-bot data-state="idle" viewBox="0 0 240 230" role="img" aria-label="Orbito's robot">
+                <defs>
+                  <linearGradient id="head" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#fdba74"/><stop offset=".5" stop-color="#f97316"/><stop offset="1" stop-color="#ea580c"/>
+                  </linearGradient>
+                  <linearGradient id="visor" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#1c1917"/><stop offset="1" stop-color="#292524"/>
+                  </linearGradient>
+                  <radialGradient id="ball"><stop offset="0" stop-color="#fed7aa"/><stop offset="1" stop-color="#f97316"/></radialGradient>
+                </defs>
+                <g class="bot__body">
+                  <circle class="bot__ball" cx="120" cy="20" r="9" fill="url(#ball)"/>
+                  <rect x="118" y="28" width="4" height="20" rx="2" fill="#ea580c"/>
+                  <rect x="30" y="98" width="14" height="42" rx="7" fill="#ea580c"/>
+                  <rect x="196" y="98" width="14" height="42" rx="7" fill="#ea580c"/>
+                  <rect x="42" y="48" width="156" height="134" rx="44" fill="url(#head)"/>
+                  <rect x="75" y="57" width="90" height="10" rx="5" fill="#fff" opacity=".22"/>
+                  <rect x="60" y="80" width="120" height="84" rx="30" fill="url(#visor)"/>
+                  <g class="bot__eyes" data-eyes>
+                    <rect class="bot__eye" data-eye="l" x="88" y="98" width="16" height="24" rx="8"/>
+                    <rect class="bot__eye" data-eye="r" x="136" y="98" width="16" height="24" rx="8"/>
+                  </g>
+                  <path class="bot__mouth" data-mouth d="M109 141 q11 9 22 0" fill="none" stroke-width="3.5" stroke-linecap="round"/>
+                  <g class="bot__wave" data-wave>
+                    <rect x="108" y="138" width="4" height="8" rx="2"/><rect x="115" y="134" width="4" height="16" rx="2"/>
+                    <rect x="122" y="131" width="4" height="22" rx="2"/><rect x="129" y="134" width="4" height="16" rx="2"/>
+                    <rect x="136" y="138" width="4" height="8" rx="2"/>
+                  </g>
+                </g>
+              </svg>
+            </div>
+            <div class="caption" aria-live="polite"><span class="caption__mic"></span><span data-caption></span></div>
+          </div>
+          <p class="stage__note">A real Orbito session, recreated. It cycles through commands people actually say.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Strip -->
+    <section class="strip" aria-label="Highlights">
+      <div class="wrap strip__grid">
+        <div><strong data-count="30">0</strong><span>things it can do on your Mac</span></div>
+        <div><strong>~0.4<small>s</small></strong><span>to turn speech into text</span></div>
+        <div><strong>0</strong><span>clicks: approve risky steps by saying "yes"</span></div>
+        <div><strong>2</strong><span>keys to start, or just say “Hey Jarvis”</span></div>
+      </div>
+    </section>
+
+    <!-- Commands -->
+    <section class="section" id="commands">
+      <div class="wrap">
+        <header class="section__head reveal">
+          <p class="kicker">What it does</p>
+          <h2>Talk to it the way you'd talk to a person.</h2>
+          <p>No commands to learn. Orbito works out what you mean and picks the right steps. Here's some of what you can say.</p>
+        </header>
+        <div class="tabs reveal" role="tablist" aria-label="Command categories" data-tabs></div>
+        <div class="commands reveal" data-commands role="tabpanel"></div>
+      </div>
+    </section>
+
+    <!-- Agent mode -->
+    <section class="section section--split">
+      <div class="wrap split">
+        <div class="reveal">
+          <p class="kicker">Agent mode</p>
+          <h2>Leave the mic on. Keep talking.</h2>
+          <p>Flip the switch in the notch and Orbito keeps listening, with no wake word between requests. It remembers what you just did, so "now close it" knows what "it" is.</p>
+          <ul class="ticks">
+            <li>Ignores background talk and phone calls</li>
+            <li>Say "stop" to cancel whatever is running</li>
+            <li>Turns itself off after 5 quiet minutes</li>
+          </ul>
+        </div>
+        <div class="convo reveal" aria-label="An agent mode conversation">
+          <div class="convo__line you"><span>You</span>open Calculator</div>
+          <div class="convo__line orbito"><span>Orbito</span>Opened Calculator.</div>
+          <div class="convo__line you"><span>You</span>type 2 plus 2</div>
+          <div class="convo__line orbito"><span>Orbito</span>Typed “2+2”.</div>
+          <div class="convo__line you"><span>You</span>now close it</div>
+          <div class="convo__line orbito"><span>Orbito</span>Closed Calculator.</div>
+          <div class="convo__line muted"><span>Background</span>“…so I told him we'd meet at six”</div>
+          <div class="convo__line orbito muted"><span>Orbito</span>Ignored: not a request.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section" id="how">
+      <div class="wrap">
+        <header class="section__head reveal">
+          <p class="kicker">How it works</p>
+          <h2>From your voice to your Mac in about three seconds.</h2>
+        </header>
+        <ol class="pipeline">
+          <li class="reveal"><span class="pipeline__n">01</span><h3>Listen</h3><p>Tap <kbd>⌃</kbd><kbd>⌥</kbd> or say the wake word. A tiny on-device model notices when you stop talking. Audio is never saved.</p><span class="pipeline__t">on your Mac</span></li>
+          <li class="reveal"><span class="pipeline__n">02</span><h3>Understand</h3><p>Whisper turns speech into text, using your installed app names so "Chrome" isn't heard as "crown".</p><span class="pipeline__t">~0.4 s</span></li>
+          <li class="reveal"><span class="pipeline__n">03</span><h3>Plan</h3><p>An LLM turns your words into a short list of allowed steps. It can't invent new actions or run shell commands.</p><span class="pipeline__t">~1.5 s</span></li>
+          <li class="reveal"><span class="pipeline__n">04</span><h3>Check</h3><p>Every step is validated twice, by the backend and again by the Mac app. Risky ones wait for your "yes".</p><span class="pipeline__t">instant</span></li>
+          <li class="reveal"><span class="pipeline__n">05</span><h3>Do</h3><p>Orbito runs each step through macOS itself and confirms it worked before moving on.</p><span class="pipeline__t">on your Mac</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Safety -->
+    <section class="section section--panel" id="safety">
+      <div class="wrap">
+        <header class="section__head reveal">
+          <p class="kicker">Safety</p>
+          <h2>Powerful, but it asks first.</h2>
+          <p>An assistant that can click and type for you needs guardrails. These are built in, not optional.</p>
+        </header>
+        <div class="safety">
+          <article class="reveal">
+            <h3>Approval for anything risky</h3>
+            <p>Typing, key presses, force quit, moving files to the Trash, locking the Mac, and buttons named Delete, Buy or Send all wait for you. Say "yes" or "no", or click.</p>
+          </article>
+          <article class="reveal">
+            <h3>A fixed list of actions</h3>
+            <p>The AI picks from 30 allowed actions. Anything else is rejected, by the backend and again by the app, even if the AI gets it wrong.</p>
+          </article>
+          <article class="reveal">
+            <h3>Things it will never do</h3>
+            <p>Run shell commands, enter passwords or payment details, send messages or email, install software, empty the Trash, restart or shut down.</p>
+          </article>
+          <article class="reveal">
+            <h3>Private by default</h3>
+            <p>Audio is never saved. Logs record what kind of step ran, never what you said or typed. Screen text is only read when you ask about your screen.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Install -->
+    <section class="section" id="install">
+      <div class="wrap install">
+        <header class="section__head reveal">
+          <p class="kicker">Install</p>
+          <h2>Get Orbito in under a minute.</h2>
+          <p class="install__status" data-release-status>Orbito is in early access. The first public build is on its way; star the repo to hear when it lands.</p>
+        </header>
+
+        <div class="install__grid">
+          <div class="card reveal">
+            <div class="card__top"><span class="badge badge--accent">Recommended</span><h3>Install with Terminal</h3></div>
+            <p>One line downloads the latest version, checks it, installs it into Applications and opens it.</p>
+            <button class="copy-cmd copy-cmd--block" data-copy="curl -fsSL https://orbito.app/install.sh | bash" aria-label="Copy the install command">
+              <span class="copy-cmd__prompt">$</span>
+              <code>curl -fsSL https://orbito.app/install.sh | bash</code>
+              <span class="copy-cmd__state" aria-hidden="true">Copy</span>
+            </button>
+            <p class="small">Open Terminal (⌘ Space, type "Terminal"), paste, press Return. <a href="install.sh" target="_blank" rel="noopener">Read the script first</a>, as you should with any install script.</p>
+          </div>
+
+          <div class="card reveal">
+            <div class="card__top"><span class="badge">Manual</span><h3>Download the app</h3></div>
+            <ol class="steps">
+              <li><a href="#" data-download data-download-direct>Download Orbito</a> and drag it into Applications.</li>
+              <li>Open it. macOS will say it can't verify the developer.</li>
+              <li>Go to <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>.</li>
+            </ol>
+            <p class="small">You only do this once. Orbito isn't signed by Apple yet, so macOS asks.</p>
+          </div>
+        </div>
+
+        <div class="perms reveal">
+          <h3>On first use, macOS asks for</h3>
+          <ul>
+            <li><b>Microphone</b><span>to hear your requests</span></li>
+            <li><b>Accessibility</b><span>to click, type, move windows and read the screen</span></li>
+            <li><b>Automation</b><span>for Finder, Notes, Reminders and Calendar, only when you use them</span></li>
+            <li><b>Screen Recording</b><span>only for screenshots of other apps' windows</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Changelog -->
+    <section class="section section--panel" id="changelog">
+      <div class="wrap">
+        <header class="section__head reveal">
+          <p class="kicker">Changelog</p>
+          <h2>Shipped lately.</h2>
+        </header>
+        <ol class="log" data-changelog>
+          <li><time>Nov 2026</time><div><h3>Full Mac control</h3><p>30 actions: windows, clicking buttons by name, screenshots, files, volume and brightness, reminders, calendar, media, and questions about your screen.</p></div></li>
+          <li><time>Nov 2026</time><div><h3>Approve by voice</h3><p>Answer "yes" or "no" when a step needs approval. No clicking needed.</p></div></li>
+          <li><time>Oct 2026</time><div><h3>Agent mode</h3><p>Continuous listening with memory of the last few requests, ignoring background talk.</p></div></li>
+          <li><time>Oct 2026</time><div><h3>Wake word and shortcut</h3><p>Tap or hold <kbd>⌃</kbd><kbd>⌥</kbd>, or say "Hey Jarvis" after the first tap.</p></div></li>
+          <li><time>Oct 2026</time><div><h3>First version</h3><p>Voice to plan to action, living in the notch.</p></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+      <div class="wrap faq">
+        <header class="section__head reveal">
+          <p class="kicker">FAQ</p>
+          <h2>Questions, answered.</h2>
+        </header>
+        <div class="faq__list">
+          <details class="reveal"><summary>Is Orbito free?</summary><p>Yes. It's free and open source. You can read every line on GitHub.</p></details>
+          <details class="reveal"><summary>Which Macs does it run on?</summary><p>Macs with Apple Silicon (M1 or newer) running macOS 14 Sonoma or later. The notch panel works best on MacBooks with a notch, but Orbito works on any display.</p></details>
+          <details class="reveal"><summary>Does it work offline?</summary><p>Listening for the wake word and noticing when you stop talking happen on your Mac. Understanding and planning use cloud models, so you need an internet connection.</p></details>
+          <details class="reveal"><summary>Is my voice recorded?</summary><p>No recording is ever saved. Audio is turned into text and then discarded. Logs keep only what type of step ran, never your words.</p></details>
+          <details class="reveal"><summary>Why does macOS say it can't verify the developer?</summary><p>Orbito isn't signed through Apple's paid developer program yet. Installing with the Terminal command avoids the warning; with the manual download, click Open Anyway once in Privacy &amp; Security.</p></details>
+          <details class="reveal"><summary>Can it do things I didn't ask for?</summary><p>No. It can only use a fixed list of actions, each step is checked twice, and risky steps wait for your approval. It can't run shell commands or send messages.</p></details>
+          <details class="reveal"><summary>Why "Hey Jarvis" and not "Hey Orbito"?</summary><p>A custom "Hey Orbito" wake word is being trained. Until then, Orbito uses a ready-made "Hey Jarvis" model, double-checked so similar phrases don't trigger it.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- Report a bug -->
+    <section class="section section--panel" id="report">
+      <div class="wrap report">
+        <header class="section__head reveal">
+          <p class="kicker">Report a bug</p>
+          <h2>Something broke? Tell us.</h2>
+          <p>This opens a pre-filled issue on GitHub, where you can add screenshots before you submit. Nothing is sent until you do.</p>
+        </header>
+        <form class="form reveal" data-bug-form novalidate>
+          <div class="form__row">
+            <label>Type
+              <select name="kind">
+                <option value="bug">Something didn't work</option>
+                <option value="speech">It heard me wrong</option>
+                <option value="crash">It crashed or froze</option>
+                <option value="install">Install problem</option>
+                <option value="idea">Idea or request</option>
+              </select>
+            </label>
+            <label>macOS version
+              <select name="macos">
+                <option>macOS 26 Tahoe</option>
+                <option>macOS 15 Sequoia</option>
+                <option>macOS 14 Sonoma</option>
+                <option>Not sure</option>
+              </select>
+            </label>
+          </div>
+          <label>Short title <span class="req">required</span>
+            <input name="title" type="text" maxlength="120" placeholder="e.g. “Click Sign in” didn't click anything in Chrome" required>
+          </label>
+          <label>What did you say, and what happened?
+            <textarea name="what" rows="4" placeholder="I said “put Safari on the left half”. The notch showed Done, but the window didn't move."></textarea>
+          </label>
+          <label>What did you expect?
+            <textarea name="expected" rows="2" placeholder="Safari should fill the left half of the screen."></textarea>
+          </label>
+          <div class="form__row">
+            <label>Orbito version
+              <input name="version" type="text" placeholder="Settings → About" maxlength="20">
+            </label>
+            <label>App you were using
+              <input name="app" type="text" placeholder="e.g. Chrome, Finder" maxlength="40">
+            </label>
+          </div>
+          <p class="small">Helpful extra: Orbito's log is at <code>~/Library/Application Support/Orbito/backend.log</code> (or Settings → Show log). It never contains what you said.</p>
+          <div class="form__actions">
+            <button class="btn btn--primary" type="submit">Open issue on GitHub</button>
+            <span class="form__error" data-form-error role="alert"></span>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <a class="brand brand--sm" href="#top" aria-label="Back to top">
+        <svg class="glyph" viewBox="0 0 64 48" aria-hidden="true"><use href="#orbito-glyph"/></svg><span>rbito</span>
+      </a>
+      <p>A voice agent for macOS. Built by <a href="https://github.com/Niket420" target="_blank" rel="noopener">Niket</a>.</p>
+      <nav aria-label="Footer">
+        <a href="https://github.com/Niket420/Orbito" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/Niket420/Orbito/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="#report">Report a bug</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- The Orbito "O": a ring circled by a tilted orbit with a satellite. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="orbito-glyph" viewBox="0 0 64 48">
+      <circle cx="32" cy="24" r="12.8" fill="none" stroke="currentColor" stroke-width="5.4"/>
+      <g transform="rotate(-32 32 25)">
+        <path d="M45.2 18.6 A23 8.2 0 1 1 41 17.4" fill="none" stroke="var(--knockout, #0a0a0a)" stroke-width="6" stroke-linecap="round"/>
+        <path d="M45.2 18.6 A23 8.2 0 1 1 41 17.4" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+      </g>
+      <circle cx="47.5" cy="11.6" r="4.4" fill="var(--knockout, #0a0a0a)"/>
+      <circle cx="47.5" cy="11.6" r="2.9" fill="currentColor"/>
+    </symbol>
+  </svg>
+
+  <script src="main.js" defer></script>
+</body>
+</html>
