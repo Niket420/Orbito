@@ -1,42 +1,15 @@
-// Orbito website: release info from GitHub, the hero demo, command tabs and bug reports.
+// Orbito website: the waitlist, the hero demo, command tabs and bug reports.
 
 const REPO = "Niket420/Orbito";
-const RAW_INSTALL_URL = `https://raw.githubusercontent.com/${REPO}/main/website/install.sh`;
+// Waitlist sign-ups go to a Formspree form (free). Create one at formspree.io and paste
+// its ID here, e.g. "xyzabcde". While it's empty, the form explains it isn't connected.
+const WAITLIST_FORM_ID = "";
 
 document.documentElement.classList.add("js");
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/* ---------- Install command ---------- */
-// Hosted on our own domain: install.sh lives next to this page. Anywhere else (a local
-// preview, GitHub Pages under a path), fall back to the copy in the GitHub repo.
-const onOwnDomain = location.protocol === "https:" && !/github\.io$|localhost|127\.0\.0\.1/.test(location.hostname);
-const installURL = onOwnDomain ? `${location.origin}/install.sh` : RAW_INSTALL_URL;
-const installCommand = `curl -fsSL ${installURL} | bash`;
-for (const button of $$("[data-copy]")) {
-  button.dataset.copy = installCommand;
-  const code = $("code", button);
-  code.textContent = button.classList.contains("copy-cmd--block")
-    ? installCommand
-    : `curl -fsSL ${installURL.replace(/^https:\/\//, "")} | bash`;
-  button.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(button.dataset.copy);
-    } catch {
-      const range = document.createRange();
-      range.selectNodeContents(code);
-      getSelection().removeAllRanges();
-      getSelection().addRange(range);
-      return;
-    }
-    const state = $(".copy-cmd__state", button);
-    button.classList.add("is-copied");
-    state.textContent = "Copied";
-    setTimeout(() => { button.classList.remove("is-copied"); state.textContent = "Copy"; }, 1800);
-  });
-}
 
 /* ---------- Nav ---------- */
 const nav = $(".nav");
@@ -94,53 +67,96 @@ const counter = new IntersectionObserver((entries) => {
 });
 $$("[data-count]").forEach((el) => counter.observe(el));
 
-/* ---------- Latest release from GitHub ---------- */
 const escapeHTML = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-async function loadReleases() {
-  let releases;
-  try {
-    const response = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=6`, {
-      headers: { Accept: "application/vnd.github+json" },
-    });
-    if (!response.ok) return;
-    releases = (await response.json()).filter((r) => !r.draft);
-  } catch {
-    return;  // offline or rate limited: the page already says "early access"
+/* ---------- Waitlist ---------- */
+const JOINED_KEY = "orbito-waitlist-joined";
+const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
+const remembered = () => { try { return localStorage.getItem(JOINED_KEY) === "1"; } catch { return false; } };
+const remember = () => { try { localStorage.setItem(JOINED_KEY, "1"); } catch { /* private mode */ } };
+
+function markJoined(form, text = "You're on the list. We'll email you when your invite is ready.") {
+  form.classList.add("is-done");
+  for (const field of form.elements) field.disabled = true;
+  $("[data-label]", form).textContent = "You're on the list";
+  const message = form.querySelector("[data-waitlist-msg]") || form.nextElementSibling;
+  if (message?.matches("[data-waitlist-msg]")) {
+    message.textContent = text;
+    message.className = "waitlist-msg is-ok";
   }
-  const latest = releases.find((r) => !r.prerelease) || releases[0];
-  if (!latest) return;
-
-  const asset = latest.assets.find((a) => /\.dmg$/i.test(a.name)) || latest.assets.find((a) => /\.zip$/i.test(a.name));
-  const version = latest.tag_name.replace(/^v/i, "");
-  $$("[data-version-label]").forEach((el) => (el.textContent = `Version ${version}`));
-  const status = $("[data-release-status]");
-  status.classList.add("is-live");
-  status.textContent = `Latest: version ${version}, released ${new Date(latest.published_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}.`;
-
-  if (asset) {
-    for (const link of $$("[data-download]")) {
-      if (link.closest(".nav") || link.hasAttribute("data-download-direct") || link.closest(".hero__cta")) {
-        link.href = asset.browser_download_url;
-      }
-    }
-    $$("[data-download-label]").forEach((el) => (el.textContent = `Download for macOS · ${version}`));
-  }
-
-  // Real releases go on top of the hand-written history.
-  const log = $("[data-changelog]");
-  const items = releases.slice(0, 4).map((r) => {
-    const date = new Date(r.published_at).toLocaleDateString(undefined, { month: "short", year: "numeric" });
-    const notes = (r.body || "").split("\n").map((l) => l.replace(/^[-*#\s]+/, "").trim()).filter(Boolean)[0] || "";
-    return `<li><time>${escapeHTML(date)}</time><div><h3>${escapeHTML(r.name || r.tag_name)}</h3>`
-      + (notes ? `<p>${escapeHTML(notes.slice(0, 220))}</p>` : "")
-      + `<a href="${escapeHTML(r.html_url)}" target="_blank" rel="noopener">Release notes</a></div></li>`;
-  });
-  log.insertAdjacentHTML("afterbegin", items.join(""));
 }
-loadReleases();
-// Until there's a release, "Download" points at the install section, and the manual link at Releases.
-$$("[data-download-direct]").forEach((el) => (el.href = `https://github.com/${REPO}/releases/latest`));
+
+for (const form of $$("[data-waitlist]")) {
+  const message = form.querySelector("[data-waitlist-msg]") || form.nextElementSibling;
+  const say = (text, kind = "") => { message.textContent = text; message.className = `waitlist-msg ${kind}`; };
+  const email = form.elements.email;
+  if (remembered()) markJoined(form, "You're already on the list. Thanks!");
+  email.addEventListener("input", () => { email.removeAttribute("aria-invalid"); say(""); });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    data.email = (data.email || "").trim();
+    if (data.company) return;  // filled in by a bot
+    if (!isEmail(data.email)) {
+      email.setAttribute("aria-invalid", "true");
+      say("Enter a valid email address.", "is-error");
+      email.focus();
+      return;
+    }
+    if (!WAITLIST_FORM_ID) {
+      say("The waitlist isn't connected yet. Please check back soon.", "is-error");
+      console.warn("Orbito: set WAITLIST_FORM_ID in main.js to collect sign-ups.");
+      return;
+    }
+    const button = form.querySelector("button[type=submit]");
+    const label = $("[data-label]", form);
+    button.disabled = true;
+    label.textContent = "Joining…";
+    try {
+      delete data.company;
+      const response = await fetch(`https://formspree.io/f/${WAITLIST_FORM_ID}`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      remember();
+      for (const other of $$("[data-waitlist]")) markJoined(other);
+    } catch {
+      button.disabled = false;
+      label.textContent = "Join the waitlist";
+      say("That didn't go through. Check your connection and try again.", "is-error");
+    }
+  });
+}
+
+/* ---------- "Code coming soon" dialog ---------- */
+const soon = $("#code-soon");
+if (soon?.showModal) {
+  for (const link of $$("[data-code-soon]")) {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (!mobileMenu.hidden) menuButton.click();
+      const joined = remembered();
+      $("[data-soon-join]", soon).hidden = joined;
+      $("p:not(.kicker)", soon).textContent = joined
+        ? "Orbito is still being polished. Once it's ready, the full source goes up on GitHub. You're already on the waitlist, so you'll hear the moment it's out."
+        : "Orbito is still being polished. Once it's ready, the full source goes up on GitHub for anyone to read, run and improve. Until then, join the waitlist and we'll tell you the moment it's out.";
+      $(".btn--ghost", soon).textContent = joined ? "Got it" : "Maybe later";
+      soon.showModal();
+    });
+  }
+  for (const button of $$("[data-soon-close]", soon)) button.addEventListener("click", () => soon.close());
+  soon.addEventListener("click", (event) => { if (event.target === soon) soon.close(); });  // backdrop
+  $("[data-soon-join]", soon).addEventListener("click", (event) => {
+    event.preventDefault();
+    soon.close();
+    $("#waitlist").scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    const email = $("#waitlist [name=email]");
+    if (email && !email.disabled) setTimeout(() => email.focus({ preventScroll: true }), reducedMotion ? 0 : 500);
+  });
+}
 
 /* ---------- Command catalogue ---------- */
 const COMMANDS = {
